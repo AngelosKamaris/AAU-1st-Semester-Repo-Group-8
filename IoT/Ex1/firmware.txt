@@ -1,0 +1,8 @@
+# ============================================================
+# SIMULATED FIRMWARE IMAGE  --  version 1.0.0
+# Target: Raspberry Pi 5
+# ============================================================
+
+(simulation only)
+
+# --- end of firmware image ---
