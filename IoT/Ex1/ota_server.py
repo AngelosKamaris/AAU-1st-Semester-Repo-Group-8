@@ -131,20 +131,15 @@ def test_scenario(broker_IP: str, scenario: str, client: mqtt.Client = None):
     print("5. Corrupted")
     choice = input("Enter your choice (1-5): ")
     match choice:
-        case "1":
-            scenario = "normal"
-        case "2":
-            scenario = "duplicate"
-        case "3":
-            scenario = "conflict"
-        case "4":
-            scenario = "missing"
-        case "5":
-            scenario = "corrupted"
+        case "1":  scenario = "normal"
+        case "2": scenario = "duplicate"
+        case "3": scenario = "conflict"
+        case "4": scenario = "missing"
+        case "5": scenario = "corrupted"
         case _:
             print("Invalid choice. Running normal scenario.")
             scenario = "normal"
-    manifest, chunks, firmware_version = generate_messages()
+    _, chunks, firmware_version = generate_messages()
     if client is None:
         client = connect(broker=broker_IP)
 
@@ -165,7 +160,7 @@ def test_scenario(broker_IP: str, scenario: str, client: mqtt.Client = None):
 
 def run_server(broker_IP: str = "localhost") -> None:
     "Runs the OTA server: generates the manifest and chunk messages, and publishes them to the MQTT broker."
-    manifest, chunks, firmware_version = generate_messages()
+    manifest, _, firmware_version = generate_messages()
     client = connect(broker=broker_IP)
 
     input(f"Press Enter to start publishing test ...")

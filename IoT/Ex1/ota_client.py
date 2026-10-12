@@ -5,7 +5,6 @@ import json
 import time
 import base64
 import hashlib
-import argparse
 import shutil
 import threading
 
@@ -18,22 +17,19 @@ TOPIC_ROOT = "ota"          #copied from server
 
 def start_client(broker: str = "localhost"):
     "Starts the OTA client, connects to the MQTT broker, subscribes to topics and listens for messages."
-    os.system("rm -r received_chunks/")
+    shutil.rmtree("received_chunks", ignore_errors=True)
     client = connect(broker)
     subscribe_to_topics(client)
     listen_for_messages(client)
     client.loop_start()
     print(f"OTA Client connected to broker at {broker} and subscribed to topics.")
     try:
-        while True:
-            time.sleep(1)
+        while True: time.sleep(1)
     except KeyboardInterrupt:
         print("OTA Client shutting down.")
     finally:
         client.loop_stop()
         client.disconnect()
-
-
 
 
 def connect(broker) -> mqtt.Client:
