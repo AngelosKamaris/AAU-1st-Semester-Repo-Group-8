@@ -1,0 +1,11 @@
+# Virtual environments
+.venv/
+.venv-linux/
+
+# Python
+__pycache__/
+
+# Build folders
+work/
+evidence/
+
