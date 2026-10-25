@@ -1,9 +1,10 @@
-import os, sys
+import os, sys, time
 from pathlib import Path
 
+from tpm_utils import workdir
 from tpms import start_tpms, stop_tpms
 from sign_verify import create_primary_key, sign_message, verify_signature, get_log
-from tpm_utils import workdir
+
 
 MESSAGE = "TPM exercise"
 TAMPERED = "TPM exercise!"
@@ -27,10 +28,20 @@ def main():
     all_ok = True
 
     for kt, alg in ALGORITHMS.items():
+        t0 = time.perf_counter()
         context = create_primary_key(kt, alg)
-        message_file = sign_message(context, kt, alg, message=MESSAGE)
+        t_create = time.perf_counter() - t0
 
+        t0 = time.perf_counter()
+        message_file = sign_message(context, kt, alg, message=MESSAGE)
+        t_sign = time.perf_counter() - t0
+
+        t0 = time.perf_counter()
         ok = verify_signature(message_file, kt, alg, label="original message")
+        t_verify = time.perf_counter() - t0
+
+        get_log(kt).say(f"\nTIMING {kt.upper()}: key creation={t_create:.3f} s, "
+                f"sign={t_sign:.3f} s, verify={t_verify:.3f} s")
 
         tampered_file = os.path.join(workdir("A"), f"{kt}_message_tampered.txt")
         Path(tampered_file).write_text(TAMPERED)
