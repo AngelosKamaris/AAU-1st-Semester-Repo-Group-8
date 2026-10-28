@@ -11,10 +11,10 @@ While TPM-A must create a TPM-backed signing key and use it to sign the followin
 | Platform | Status |
 |---|---|
 | Linux (Ubuntu/Debian, Raspberry Pi OS) | Supported |
-| Windows 10/11 via **WSL2** (Ubuntu) | Not supported for this hardware-TPM setup |
-| Native Windows / macOS | Not supported |
+| Windows 10/11 via **WSL2** (Ubuntu) | Not supported for hardware-TPM setup (supported for emulation)|
+| Native Windows / macOS | Not supported for hardware-TPM setup (supported for emulation) |
 
-The experiment requires Linux TPM device access and the TPM tools it calls.
+The experiment requires Linux and `tpm2-tools`. Each host can use any TPM supported by its installed TPM2-TSS TCTI plugin.
 
 ## Setup
 
@@ -39,7 +39,13 @@ On Windows, first open PowerShell or Command Prompt as administrator, and instal
 
 ## Running with two TPM VMs
 
-Clone the repository on TPM-A and enable SSH on TPM-B. From `IoT/Ex2` on TPM-A, run `python3 run.py` or `python3 run_pcr.py`. The script asks for TPM-B's SSH username and IP; OpenSSH prompts for its password. TPM-A uses its local `/dev/tpmrm0` device, and TPM-B commands run remotely over SSH.
+Run.py and all its accompaning files need only be on TPM-A, which should be able to connect via ssh to TPM-B. From `IoT/Ex2` on TPM-A, run `python3 run.py` or `python3 run_pcr.py`. The script asks for TPM-B's SSH username and IP (name can be used if it has been setup); OpenSSH prompts for its password. TPM commands run on their respective hosts.
+
+The default TCTI for both hosts is `device:/dev/tpmrm0`. To use another TPM interface, edit `TPM_TCTI` near the top of `tpm_utils.py`:
+
+       TPM_TCTI = {"A": "device:/dev/tpm0", "B": "device:/dev/tpm0"}
+
+Use TCTI values supported by each host's installed plugin.
 
 ## Authors
 Nuria Arqués León, Ikhlasse Badidi, Martha Gaki, Angelos Kamaris, Waleed Rashed, and Aicha Nadja Thorman 

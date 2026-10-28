@@ -7,25 +7,20 @@ from pathlib import Path
 ROOT = Path().cwd()
 WORK = ROOT / "work"
 EVID = ROOT / "evidence"
+
+# Change these TCTI values to match each host's TPM setup.
+TPM_TCTI = {"A": "device:/dev/tpmrm0", "B": "device:/dev/tpmrm0"}
 SSH_TARGET = None
 SSH_CONTROL = Path.home() / ".ssh" / "tpm-ex2-%C"
 
-
-def tcti(tpm: str) -> str:
-    """TCTI for a real TPM, overridable per host."""
-
-    return os.environ.get(f"TPM_{tpm}_TCTI", "device:/dev/tpmrm0")
 
 
 def connect_tpm_b():
     """Connect to TPM-B over SSH; OpenSSH handles host-key and password prompts."""
     global SSH_TARGET
-    username = input("TPM-B SSH username: ").strip()
-    host = input("TPM-B IP address: ").strip()
-    if (not username or not host or username.startswith("-") or host.startswith("-")
-            or any(c.isspace() for c in username + host)):
-        raise ValueError("A valid TPM-B username and IP address are required.")
 
+    username = input("TPM-B SSH username: ").strip()
+    host = input("TPM-B IP address (or name): ").strip()
     SSH_TARGET = f"{username}@{host}"
     SSH_CONTROL.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     result = subprocess.run(
@@ -37,18 +32,16 @@ def connect_tpm_b():
         raise RuntimeError("Could not establish SSH connection to TPM-B.")
     atexit.register(disconnect_tpm_b)
 
-    result = subprocess.run(
+    subprocess.run(
         ["ssh", "-S", str(SSH_CONTROL), SSH_TARGET,
          "cd \"$HOME\" && mkdir -p .tpm_ex2/work/tpm_b"],
-        capture_output=True, text=True
+        check=True
     )
-    if result.returncode:
-        raise RuntimeError("Could not prepare TPM-B workspace:\n" + result.stderr.strip())
-
 
 def disconnect_tpm_b():
     """Close the persistent SSH connection, if one was opened."""
     global SSH_TARGET
+
     if SSH_TARGET:
         subprocess.run(
             ["ssh", "-S", str(SSH_CONTROL), "-O", "exit", SSH_TARGET],
@@ -65,9 +58,11 @@ def workdir(tpm: str) -> Path:
     d.mkdir(parents=True, exist_ok=True)
     return d
 
+
 def prettify(text: str) -> str:
     """Hide machine-specific paths in log output."""
     return text.replace(str(WORK), ".").replace(str(ROOT), ".")
+
 
 class Log:
     """Prints text to the screen and saves it to evidence/<name>.log"""
@@ -99,10 +94,7 @@ def run(cmd: list, tpm: str = None, log: Log = None, check: bool = True) -> subp
     if tpm == "B":
         if not SSH_TARGET:
             raise RuntimeError("Connect to TPM-B before running TPM-B commands.")
-        remote_cmd = (
-            f"cd \"$HOME\" && TPM2TOOLS_TCTI={shlex.quote(tcti(tpm))} "
-            + shlex.join(cmd)
-        )
+        remote_cmd = f"TPM2TOOLS_TCTI={shlex.quote(TPM_TCTI[tpm])} {shlex.join(cmd)}"
         result = subprocess.run(
             ["ssh", "-S", str(SSH_CONTROL), "-o", "BatchMode=yes",
              SSH_TARGET, remote_cmd],
@@ -111,7 +103,7 @@ def run(cmd: list, tpm: str = None, log: Log = None, check: bool = True) -> subp
     else:
         env = os.environ.copy()
         if tpm:
-            env["TPM2TOOLS_TCTI"] = tcti(tpm)
+            env["TPM2TOOLS_TCTI"] = TPM_TCTI[tpm]
         result = subprocess.run(cmd, env=env, capture_output=True, text=True)
     output = (result.stdout + result.stderr).strip()
 
