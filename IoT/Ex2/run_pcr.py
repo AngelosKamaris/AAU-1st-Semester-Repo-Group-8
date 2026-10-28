@@ -2,13 +2,13 @@
 
 import sys
 
-from tpms import start_tpms, stop_tpms
+from tpm_utils import connect_tpm_b, disconnect_tpm_b
 from pcr_policy import (log, set_expected_pcr_state, create_pcr_policy, create_pcr_key,
                         sign_with_pcr_policy, change_pcr_state, verify_on_tpm_b)
 
 
 def main():
-    start_tpms()
+    connect_tpm_b()
 
     set_expected_pcr_state()                                                   # 1
     policy = create_pcr_policy()                                               # 2
@@ -23,7 +23,7 @@ def main():
             f"signing refused after PCR change={not signed_bad}, "
             f"TPM-B verified={verified} -> {'PASS' if passed else 'FAIL'}")
 
-    stop_tpms()
+    disconnect_tpm_b()
     sys.exit(0 if passed else 1)
 
 

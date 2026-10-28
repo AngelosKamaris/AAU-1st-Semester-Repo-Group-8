@@ -18,20 +18,24 @@ The experiment requires Linux and `tpm2-tools`. Each host can use any TPM suppor
 
 ## Setup
 
-The experiment needs **system packages (apt)** on both TPM VMs. TPM-B must also run an SSH server.
+TPM-A and TPM-B both need `tpm2-tools` and access to their configured TPM. TPM-A also needs Python and an SSH client; TPM-B needs an SSH server. The project files only need to be cloned on TPM-A.
 
-1. System dependencies (required, pip cannot install these):
+1. Install on both TPM-A and TPM-B:
        
        sudo apt update
-       sudo apt install tpm2-tools openssl python3 python3-venv
-       sudo apt install openssh-client
-       # On TPM-B:
+       sudo apt install tpm2-tools
+
+2. Install on TPM-A:
+
+       sudo apt install openssl python3 python3-venv openssh-client
+
+3. Install on TPM-B:
+
        sudo apt install openssh-server
 
+Python 3.9+ is recommended on TPM-A. No third-party Python packages are needed, so there is no `pip install -r requirements.txt` step.
 
-2. Python: version 3.9+ is recommended. No third-party packages are needed, so there is no `pip install -r requirements.txt` step.   
-
-3. Verify the install:
+4. Verify TPM access on both hosts:
 
        tpm2_getcap -v
 
@@ -39,7 +43,7 @@ On Windows, first open PowerShell or Command Prompt as administrator, and instal
 
 ## Running with two TPM VMs
 
-Run.py and all its accompaning files need only be on TPM-A, which should be able to connect via ssh to TPM-B. From `IoT/Ex2` on TPM-A, run `python3 run.py` or `python3 run_pcr.py`. The script asks for TPM-B's SSH username and IP (name can be used if it has been setup); OpenSSH prompts for its password. TPM commands run on their respective hosts.
+The project files only need to be on TPM-A, which connects to TPM-B over SSH. TPM-B must have `tpm2-tools` installed because verification commands run there. From `IoT/Ex2` on TPM-A, run `python3 run.py` or `python3 run_pcr.py`. The script asks for TPM-B's SSH username and IP (a hostname also works if configured); OpenSSH prompts for its password. TPM commands run on their respective hosts.
 
 The default TCTI for both hosts is `device:/dev/tpmrm0`. To use another TPM interface, edit `TPM_TCTI` near the top of `tpm_utils.py`:
 
