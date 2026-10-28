@@ -11,29 +11,35 @@ While TPM-A must create a TPM-backed signing key and use it to sign the followin
 | Platform | Status |
 |---|---|
 | Linux (Ubuntu/Debian, Raspberry Pi OS) | Supported |
-| Windows 10/11 via **WSL2** (Ubuntu) | Supported (simulators only) |
-| Native Windows / macOS | Not supported: `swtpm` and `tpm2-tools` are not available |
+| Windows 10/11 via **WSL2** (Ubuntu) | Not supported for this hardware-TPM setup |
+| Native Windows / macOS | Not supported |
 
-Although the Python code uses only standard libraries and is OS-independent, the limitation comes from the TPM tools it calls.
+The experiment requires Linux TPM device access and the TPM tools it calls.
 
 ## Setup
 
-The experiment needs **system packages (apt)**. 
+The experiment needs **system packages (apt)** on both TPM VMs. TPM-B must also run an SSH server.
 
 1. System dependencies (required, pip cannot install these):
        
        sudo apt update
-       sudo apt install swtpm swtpm-tools tpm2-tools openssl python3 python3-venv
-       sudo apt install libtss2-tcti-swtpm0t64 || sudo apt install libtss2-tcti-swtpm0
+       sudo apt install tpm2-tools openssl python3 python3-venv
+       sudo apt install openssh-client
+       # On TPM-B:
+       sudo apt install openssh-server
 
 
 2. Python: version 3.9+ is recommended. No third-party packages are needed, so there is no `pip install -r requirements.txt` step.   
 
 3. Verify the install:
 
-       swtpm --version && tpm2_getcap -v
+       tpm2_getcap -v
 
 On Windows, first open PowerShell or Command Prompt as administrator, and install WSL2 with Ubuntu (`wsl --install`), then run everything inside the Ubuntu shell. 
+
+## Running with two TPM VMs
+
+Clone the repository on TPM-A and enable SSH on TPM-B. From `IoT/Ex2` on TPM-A, run `python3 run.py` or `python3 run_pcr.py`. The script asks for TPM-B's SSH username and IP; OpenSSH prompts for its password. TPM-A uses its local `/dev/tpmrm0` device, and TPM-B commands run remotely over SSH.
 
 ## Authors
 Nuria Arqués León, Ikhlasse Badidi, Martha Gaki, Angelos Kamaris, Waleed Rashed, and Aicha Nadja Thorman 
