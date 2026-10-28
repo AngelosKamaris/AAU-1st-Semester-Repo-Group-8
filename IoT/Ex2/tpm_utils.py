@@ -1,31 +1,68 @@
+import atexit
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
 ROOT = Path().cwd()
 WORK = ROOT / "work"
 EVID = ROOT / "evidence"
-PORTS = {"A": 2321, "B": 2323}
+
+# Change these TCTI values to match each host's TPM setup.
+TPM_TCTI = {"A": "device:/dev/tpmrm0", "B": "device:/dev/tpmrm0"}
+SSH_TARGET = None
+SSH_CONTROL = Path.home() / ".ssh" / "tpm-ex2-%C"
 
 
-def tcti(tpm: str) -> str:
-    """TCTI for a TPM: 
-        For a real TPM, the TCTI is device:/dev/tpmrm0
-        For a simulator, it is swtpm:host=<ip>,port=<port>"""
 
-    # TODO!: CHECK WHAT HAPPENS WITH THE RASPBERRY PI
-    return os.environ.get(f"TPM_{tpm}_TCTI", f"swtpm:host=127.0.0.1,port={PORTS[tpm]}")
+def connect_tpm_b():
+    """Connect to TPM-B over SSH; OpenSSH handles host-key and password prompts."""
+    global SSH_TARGET
+
+    username = input("TPM-B SSH username: ").strip()
+    host = input("TPM-B IP address (or name): ").strip()
+    SSH_TARGET = f"{username}@{host}"
+    SSH_CONTROL.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    result = subprocess.run(
+        ["ssh", "-MNf", "-o", "ControlMaster=yes", "-o", "ControlPersist=600",
+         "-o", f"ControlPath={SSH_CONTROL}", SSH_TARGET]
+    )
+    if result.returncode:
+        SSH_TARGET = None
+        raise RuntimeError("Could not establish SSH connection to TPM-B.")
+    atexit.register(disconnect_tpm_b)
+
+    subprocess.run(
+        ["ssh", "-S", str(SSH_CONTROL), SSH_TARGET,
+         "cd \"$HOME\" && mkdir -p .tpm_ex2/work/tpm_b"],
+        check=True
+    )
+
+def disconnect_tpm_b():
+    """Close the persistent SSH connection, if one was opened."""
+    global SSH_TARGET
+
+    if SSH_TARGET:
+        subprocess.run(
+            ["ssh", "-S", str(SSH_CONTROL), "-O", "exit", SSH_TARGET],
+            check=False
+        )
+        SSH_TARGET = None
 
 
 def workdir(tpm: str) -> Path:
     """Private folder per TPM host: work/tpm_a, work/tpm_b."""
+    if tpm == "B":
+        return Path(".tpm_ex2/work/tpm_b")
     d = WORK / f"tpm_{tpm.lower()}"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
+
 def prettify(text: str) -> str:
     """Hide machine-specific paths in log output."""
     return text.replace(str(WORK), ".").replace(str(ROOT), ".")
+
 
 class Log:
     """Prints text to the screen and saves it to evidence/<name>.log"""
@@ -49,17 +86,25 @@ def run(cmd: list, tpm: str = None, log: Log = None, check: bool = True) -> subp
     """Run a command, log it, and raise if it fails (unless check=False)."""
 
     cmd = [str(c) for c in cmd]
-    env = os.environ.copy() # which TPM to talk to ("A" or "B")
-
-    if tpm: env["TPM2TOOLS_TCTI"] = tcti(tpm)
-
     # Specify on the log file the TPM performing the command
     if log:
         who = "TPM-" + tpm if tpm else "host"
         log.say(f"[{who}] $ " + prettify(" ".join(cmd)))
 
-    # Run the command (Linux CLI) and capture its output
-    result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    if tpm == "B":
+        if not SSH_TARGET:
+            raise RuntimeError("Connect to TPM-B before running TPM-B commands.")
+        remote_cmd = f"TPM2TOOLS_TCTI={shlex.quote(TPM_TCTI[tpm])} {shlex.join(cmd)}"
+        result = subprocess.run(
+            ["ssh", "-S", str(SSH_CONTROL), "-o", "BatchMode=yes",
+             SSH_TARGET, remote_cmd],
+            capture_output=True, text=True
+        )
+    else:
+        env = os.environ.copy()
+        if tpm:
+            env["TPM2TOOLS_TCTI"] = TPM_TCTI[tpm]
+        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
     output = (result.stdout + result.stderr).strip()
 
     if log:
@@ -77,10 +122,21 @@ def flush(tpm: str):
 
 
 def transfer(src: str, dst_tpm: str, log: Log) -> Path:
-    """Simulate moving a file to the other host."""
+    """Copy a file to the other host."""
 
     src = Path(src) 
     dst = Path(os.path.join(workdir(dst_tpm), src.name))
-    dst.write_bytes(src.read_bytes())
-    log.say(f"[transfer] {src.name} -> TPM-{dst_tpm} host ({dst.stat().st_size} bytes)")
+    if dst_tpm == "B":
+        if not SSH_TARGET:
+            raise RuntimeError("Connect to TPM-B before transferring files.")
+        result = subprocess.run(
+            ["scp", "-o", f"ControlPath={SSH_CONTROL}", "-o", "BatchMode=yes",
+             str(src), f"{SSH_TARGET}:{dst}"],
+            capture_output=True, text=True
+        )
+        if result.returncode:
+            raise RuntimeError("Could not transfer file to TPM-B:\n" + result.stderr.strip())
+    else:
+        dst.write_bytes(src.read_bytes())
+    log.say(f"[transfer] {src.name} -> TPM-{dst_tpm} host ({src.stat().st_size} bytes)")
     return dst

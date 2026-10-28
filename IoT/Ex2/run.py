@@ -1,8 +1,7 @@
 import os, sys, time
 from pathlib import Path
 
-from tpm_utils import workdir
-from tpms import start_tpms, stop_tpms
+from tpm_utils import connect_tpm_b, disconnect_tpm_b, workdir
 from sign_verify import create_primary_key, sign_message, verify_signature, get_log
 
 
@@ -24,7 +23,7 @@ ALGORITHMS = {
 
 
 def main():
-    start_tpms()
+    connect_tpm_b()
     all_ok = True
 
     for kt, alg in ALGORITHMS.items():
@@ -53,7 +52,7 @@ def main():
         
         all_ok &= passed # if any test fails, the final exit code will be 1
 
-    stop_tpms()
+    disconnect_tpm_b()
     sys.exit(0 if all_ok else 1)
 
 
