@@ -43,7 +43,7 @@ On Windows, first open PowerShell or Command Prompt as administrator, and instal
 
 ## Running with two TPM VMs
 
-The project files only need to be on TPM-A, which connects to TPM-B over SSH. TPM-B must have `tpm2-tools` installed because verification commands run there. From `IoT/Ex2` on TPM-A, run `python3 run.py` or `python3 run_pcr.py`. The script asks for TPM-B's SSH username and IP (a hostname also works if configured); OpenSSH prompts for its password. TPM commands run on their respective hosts.
+The project files only need to be on TPM-A, which connects to TPM-B over SSH. TPM-B must have `tpm2-tools` installed because verification commands run there. From `IoT/Ex2` on TPM-A, run `python3 run.py` to run the RSA, ECC, and PCR-bound signing experiments. The script asks for TPM-B's SSH username and IP (a hostname also works if configured); OpenSSH prompts for its password. TPM commands run on their respective hosts.
 
 The default TCTI for both hosts is `device:/dev/tpmrm0`. To use another TPM interface, edit `TPM_TCTI` near the top of `tpm_utils.py`:
 

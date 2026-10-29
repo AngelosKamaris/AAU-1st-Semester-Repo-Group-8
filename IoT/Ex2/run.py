@@ -3,6 +3,9 @@ from pathlib import Path
 
 from tpm_utils import connect_tpm_b, disconnect_tpm_b, workdir
 from sign_verify import create_primary_key, sign_message, verify_signature, get_log
+from pcr_policy import (log as pcr_log, set_expected_pcr_state, create_pcr_policy,
+                        create_pcr_key, sign_with_pcr_policy, change_pcr_state,
+                        verify_on_tpm_b)
 
 
 MESSAGE = "TPM exercise"
@@ -51,6 +54,20 @@ def main():
                         f"tampered rejected={not bad} -> {'PASS' if passed else 'FAIL'}")
         
         all_ok &= passed # if any test fails, the final exit code will be 1
+
+    set_expected_pcr_state()
+    policy = create_pcr_policy()
+    context = create_pcr_key(policy)
+    signed_ok = sign_with_pcr_policy(context, "pcr_signature.sig", "PCR matches")
+    change_pcr_state()
+    signed_bad = sign_with_pcr_policy(context, "pcr_signature_bad.sig", "PCR changed")
+    verified = verify_on_tpm_b("pcr_signature.sig")
+
+    pcr_passed = signed_ok and not signed_bad and verified
+    pcr_log.say(f"\nPCR RESULT: signing allowed with expected PCR={signed_ok}, "
+                f"signing refused after PCR change={not signed_bad}, "
+                f"TPM-B verified={verified} -> {'PASS' if pcr_passed else 'FAIL'}")
+    all_ok &= pcr_passed
 
     disconnect_tpm_b()
     sys.exit(0 if all_ok else 1)
