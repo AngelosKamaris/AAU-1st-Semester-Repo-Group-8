@@ -28,9 +28,10 @@ event connection_state_remove(c: connection)
         {
         ++udp_notice_count[scanner, target];
         NOTICE([$note=UDP_Scan,
-                $msg=fmt("Possible UDP scan: %s probed %d distinct UDP ports on %s with no replies. Notice #%d for this pair.",
+                $msg=fmt("Possible UDP scan: %s probed %d distinct UDP ports on %s with no replies. Notice #%d for this pair. Previous notices: %d.",
                          scanner, |udp_attempts[scanner, target]|, target,
-                         udp_notice_count[scanner, target]),
+                         udp_notice_count[scanner, target],
+                         udp_notice_count[scanner, target] - 1),
                 $src=scanner, $dst=target]);
         delete udp_attempts[scanner, target];
         }

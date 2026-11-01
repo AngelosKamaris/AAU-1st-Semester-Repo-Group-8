@@ -1,0 +1,5 @@
+
+# Network packet captures
+*.pcap
+*.pcapng
+assignment/

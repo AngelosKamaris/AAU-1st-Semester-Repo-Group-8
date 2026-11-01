@@ -31,9 +31,10 @@ event connection_state_remove(c: connection)
         {
         ++syn_notice_count[scanner, target];
         NOTICE([$note=SYN_Scan,
-                $msg=fmt("Possible SYN scan: %s probed %d distinct ports on %s without completing the handshake. Notice #%d for this pair.",
+                $msg=fmt("Possible SYN scan: %s probed %d distinct ports on %s without completing the handshake. Notice #%d for this pair. Previous notices: %d.",
                          scanner, |syn_attempts[scanner, target]|, target,
-                         syn_notice_count[scanner, target]),
+                         syn_notice_count[scanner, target],
+                         syn_notice_count[scanner, target] - 1),
                 $src=scanner, $dst=target]);
         delete syn_attempts[scanner, target];
         }

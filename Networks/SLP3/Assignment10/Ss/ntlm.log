@@ -3,11 +3,11 @@
 #empty_field	(empty)
 #unset_field	-
 #path	ntlm
-#open	2026-10-26-16-58-47
+#open	2026-11-01-09-32-06
 #fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	username	hostname	domainname	server_nb_computer_name	server_dns_computer_name	server_tree_name	success
 #types	time	string	addr	port	addr	port	string	string	string	string	string	string	bool
-1499449658.045090	ChAkmk2kZfOSGcnA9	192.168.10.8	8310	192.168.10.3	445	-	MITACS-PC2	-	DC	DC.Testbed1.ca	Testbed1.ca	T
-1499450558.112240	CynfTz8w9Gi9f8U89	192.168.10.8	8380	192.168.10.3	445	-	MITACS-PC2	-	DC	DC.Testbed1.ca	Testbed1.ca	T
-1499451458.182032	C6R1em2FjJsZo9Z0S3	192.168.10.8	9039	192.168.10.3	445	-	MITACS-PC2	-	DC	DC.Testbed1.ca	Testbed1.ca	T
-1499452358.235394	CTjPQJ3ayuO2BlTmx3	192.168.10.8	9372	192.168.10.3	445	-	MITACS-PC2	-	DC	DC.Testbed1.ca	Testbed1.ca	T
-#close	2026-10-26-16-58-56
+1499449658.045090	C65nzN1YqN0wuU4mvh	192.168.10.8	8310	192.168.10.3	445	-	MITACS-PC2	-	DC	DC.Testbed1.ca	Testbed1.ca	T
+1499450558.112240	ChbOcM2u2Q6xpuAuul	192.168.10.8	8380	192.168.10.3	445	-	MITACS-PC2	-	DC	DC.Testbed1.ca	Testbed1.ca	T
+1499451458.182032	CtlCJq4Sdpx58WO4bg	192.168.10.8	9039	192.168.10.3	445	-	MITACS-PC2	-	DC	DC.Testbed1.ca	Testbed1.ca	T
+1499452358.235394	CmLEBB1XZcHuhSpvO4	192.168.10.8	9372	192.168.10.3	445	-	MITACS-PC2	-	DC	DC.Testbed1.ca	Testbed1.ca	T
+#close	2026-11-01-09-32-29

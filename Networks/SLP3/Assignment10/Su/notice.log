@@ -3,8 +3,8 @@
 #empty_field	(empty)
 #unset_field	-
 #path	notice
-#open	2026-10-26-17-07-35
+#open	2026-11-01-09-35-20
 #fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	fuid	file_mime_type	file_desc	proto	note	msg	sub	src	dst	p	n	peer_descr	actions	email_dest	suppress_for	remote_location.country_code	remote_location.region	remote_location.city	remote_location.latitude	remote_location.longitude
 #types	time	string	addr	port	addr	port	string	string	string	enum	enum	string	string	addr	addr	port	count	string	set[enum]	set[string]	interval	string	string	string	double	double
-1499451177.929507	-	-	-	-	-	-	-	-	-	UdpScanDetect::UDP_Scan	Possible UDP scan: 172.16.0.1 probed 50 distinct UDP ports on 192.168.10.50 with no replies. Notice #1 for this pair.	-	172.16.0.1	192.168.10.50	-	-	-	Notice::ACTION_LOG	(empty)	3600.000000	-	-	-	-	-
-#close	2026-10-26-17-07-38
+1499451177.929507	-	-	-	-	-	-	-	-	-	UdpScanDetect::UDP_Scan	Possible UDP scan: 172.16.0.1 probed 50 distinct UDP ports on 192.168.10.50 with no replies. Notice #1 for this pair. Previous notices: 0.	-	172.16.0.1	192.168.10.50	-	-	-	Notice::ACTION_LOG	(empty)	3600.000000	-	-	-	-	-
+#close	2026-11-01-09-35-32
