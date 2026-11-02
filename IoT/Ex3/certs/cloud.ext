@@ -1,0 +1,2 @@
+subjectAltName=DNS:cloud
+extendedKeyUsage=serverAuth,clientAuth

@@ -9,7 +9,7 @@ TPM-A creates a TPM-backed signing key and signs the message `TPM exercise`. TPM
 
 ## Requirements
 
-* Two Linux machines, each with a TPM 2.0 (we used Ubuntu on the laptop and Raspberry Pi OS on the Pi).
+* Two machines, each with a TPM 2.0 (we used an Ubuntu laptop and a Raspberry Pi).
 * Both machines on the same network, so TPM-A can reach TPM-B over SSH.
 * Python 3 on TPM-A. No extra Python packages are needed.
 
@@ -40,10 +40,10 @@ If this prints random characters, TPM-A is ready.
 
 ## 3. Start TPM-B (Raspberry Pi)
 
-1. With the Pi powered off, connect the Let's Trust TPM board to the GPIO pins (see https://pinout.xyz/pinout/letstrust_tpm).
-2. Enable the TPM driver by adding this line under `[all]` in `/boot/firmware/config.txt`:
-
+1. Enable the TPM driver by adding this line under `[all]` in `/boot/firmware/config.txt`:
        dtoverlay=tpm-slb9670
+
+2. With the Pi powered off, connect the Let's Trust TPM board to the GPIO pins (see https://pinout.xyz/pinout/letstrust_tpm).
 
 3. Reboot, then check that the TPM is detected:
 

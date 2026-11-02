@@ -1,0 +1,186 @@
+#1.1 is covered by all of this
+
+###################1.2########################
+networks:
+  zone_a_net:
+    internal: true                        #1.3
+    ipam:
+      config:
+        - subnet: 1.1.2.0/24 # Zone A
+  zone_b_net:
+    internal: true                        #1.3
+    ipam:
+      config:
+        - subnet: 1.1.3.0/24 # Zone B
+
+  backbone_net:
+    name: backbone_net
+    ipam:
+      config:
+        - subnet: 1.1.1.0/24
+
+  mgmt_net:
+    name: mgmt_net
+    ipam:
+      config:
+        - subnet: 1.1.4.0/24
+#########################################
+
+
+services:
+
+#cameras
+
+  camera-1:
+    volumes:
+      - ./images:/images:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    build:
+      context: ./
+    container_name: camera-1
+    environment:
+      CAMERA_ID: camera-1
+      CAMERA_TOKEN: ${C1_KEY}                 #4.2
+      FOG_URL: https://fog_a:8000                 #4.1
+    networks:
+      zone_a_net:
+        ipv4_address: 1.1.2.3
+    command: ["python", "/scripts/camera.py"]
+    depends_on:
+      - fog_a
+  camera-2:
+    volumes:
+      - ./images:/images:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    build:
+      context: ./
+    container_name: camera-2
+    environment:
+      CAMERA_ID: camera-2
+      CAMERA_TOKEN: ${C2_KEY}                 #4.2
+      FOG_URL: https://fog_a:8000                 #4.1
+    networks:
+      zone_a_net:
+        ipv4_address: 1.1.2.4
+    command: ["python", "/scripts/camera.py"]
+    depends_on:
+      - fog_a
+  camera-3:
+    volumes:
+      - ./images:/images:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    build:
+      context: ./
+    container_name: camera-3
+    environment:
+      CAMERA_ID: camera-3
+      CAMERA_TOKEN: ${C3_KEY}                 #4.2
+      FOG_URL: https://fog_b:8000                  #4.1
+
+    networks:
+      zone_b_net:
+        ipv4_address: 1.1.3.3
+    command: ["python", "/scripts/camera.py"]
+    depends_on:
+      - fog_b
+
+#fog devices
+  
+  fog_a:
+    volumes:
+      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./certs/fog_a.crt:/certs/server.crt:ro                 #4.1
+      - ./certs/fog_a.key:/certs/server.key:ro
+    build:
+      context: .
+    container_name: fog_a
+    ports:
+      - "8001:8000"
+    environment:
+      camera-1: ${C1_KEY}
+      camera-2: ${C2_KEY}
+      camera-3: ${C3_KEY}
+      CLOUD_URL: https://cloud:8000                 #4.1
+    networks:
+      zone_a_net:
+        ipv4_address: 1.1.2.2
+        interface_name: eth0
+      backbone_net:
+        ipv4_address: 1.1.1.2
+        interface_name: eth1
+      mgmt_net:
+        ipv4_address: 1.1.4.2
+        interface_name: eth2
+    cpus: "0.5"                                     #1.4
+    mem_limit: 256m
+    cap_add:
+      - NET_ADMIN
+    command: ["sh", "-c", "tc qdisc replace dev eth1 root netem delay 200ms && exec python /scripts/fog.py"] #1.5 https://medium.com/@kazushi/simulate-high-latency-network-using-docker-containerand-tc-commands-a3e503ea4307
+    depends_on:
+      - cloud
+  fog_b:
+    volumes:
+        - ./certs/ca.crt:/certs/ca.crt:ro
+        - ./certs/fog_b.crt:/certs/server.crt:ro                 #4.1
+        - ./certs/fog_b.key:/certs/server.key:ro
+    build:
+      context: .
+    container_name: fog_b
+    ports:
+      - "8002:8000"
+    environment:
+      camera-1: ${C1_KEY}
+      camera-2: ${C2_KEY}
+      camera-3: ${C3_KEY}
+      CLOUD_URL: https://cloud:8000                 #4.1
+    networks:
+      zone_b_net:
+        ipv4_address: 1.1.3.2
+        interface_name: eth0
+      backbone_net:
+        ipv4_address: 1.1.1.3
+        interface_name: eth1
+      mgmt_net:
+        ipv4_address: 1.1.4.3
+        interface_name: eth2
+    cpus: "0.5"                                     #1.4
+    mem_limit: 256m
+    cap_add:
+      - NET_ADMIN
+    command: ["sh", "-c", "tc qdisc replace dev eth1 root netem delay 200ms && exec python /scripts/fog.py"] #1.5
+    depends_on:
+      - cloud
+
+#cloud
+
+  cloud:
+    volumes:
+      - ./cloud:/cloud
+      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./certs/cloud.crt:/certs/server.crt:ro                 #4.1
+      - ./certs/cloud.key:/certs/server.key:ro
+    build:
+      context: .
+    container_name: cloud
+    ports:
+      - "8003:8000"
+    networks:
+      backbone_net:
+        ipv4_address: 1.1.1.4
+        interface_name: eth0
+      mgmt_net:
+        ipv4_address: 1.1.4.4
+        interface_name: eth1
+    cap_add:
+      - NET_ADMIN
+    command: ["sh", "-c", "tc qdisc replace dev eth0 root netem delay 200ms && exec python /scripts/cloud.py"] #1.5 interfaces assign ips in alphabetical order, so eth0 is backbone_net and eth1 is mgmt_net
+
+  logger:
+    build:
+      context: .
+    container_name: logger
+    ports:
+      - "8004:8000"
+    networks:
+      mgmt_net:
+        ipv4_address: 1.1.4.5

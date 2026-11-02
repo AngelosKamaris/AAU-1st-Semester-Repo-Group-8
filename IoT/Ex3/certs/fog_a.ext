@@ -1,0 +1,2 @@
+subjectAltName=DNS:fog_a
+extendedKeyUsage=serverAuth,clientAuth
