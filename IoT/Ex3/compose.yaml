@@ -173,9 +173,11 @@ services:
         interface_name: eth1
     cap_add:
       - NET_ADMIN
-    command: ["sh", "-c", "tc qdisc replace dev eth0 root netem delay 200ms && exec python /scripts/cloud.py"] #1.5 interfaces assign ips in alphabetical order, so eth0 is backbone_net and eth1 is mgmt_net
+    command: ["sh", "-c", "tc qdisc replace dev eth0 root netem delay 200ms && exec python /scripts/cloud.py"] #1.5
 
   logger:
+    volumes:
+      - ./logs:/logs
     build:
       context: .
     container_name: logger
@@ -184,3 +186,4 @@ services:
     networks:
       mgmt_net:
         ipv4_address: 1.1.4.5
+    command: ["python", "/scripts/log.py"]

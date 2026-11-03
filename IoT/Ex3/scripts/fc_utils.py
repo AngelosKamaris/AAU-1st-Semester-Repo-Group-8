@@ -1,7 +1,5 @@
-import io
+import hashlib, psutil, io, os, json, urllib.request
 from PIL import Image
-import hashlib
-import psutil
 
 def local_fraction(size):
     cpu = psutil.cpu_percent(interval=0.1)      #see how busy the CPU is
@@ -43,3 +41,9 @@ def combine_images(local, remote):
     output = io.BytesIO()
     combined.save(output, format="PNG")
     return output.getvalue()
+
+
+def send_log(record):
+    data = json.dumps(record).encode()
+    request = urllib.request.Request( "http://1.1.4.5:8000/logs", data=data, headers={"Content-Type": "application/json"})
+    urllib.request.urlopen(request, timeout=2).read()

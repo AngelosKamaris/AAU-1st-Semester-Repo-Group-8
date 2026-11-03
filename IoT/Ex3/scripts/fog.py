@@ -1,7 +1,9 @@
-import os, json, base64, io, time, urllib.request, ssl
+import time
+from datetime import datetime
+import os, json, base64, io, urllib.request, ssl
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from PIL import Image
-from fc_utils import process_image, local_fraction, verify, combine_images
+from fc_utils import process_image, local_fraction, verify, combine_images, send_log
 
 cloud = os.getenv("CLOUD_URL")
 thres = 300000
@@ -12,6 +14,7 @@ context.load_cert_chain("/certs/server.crt", "/certs/server.key")
 
 class Fog(BaseHTTPRequestHandler):
     def do_POST(self):
+        start_time = time.perf_counter()
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
 
         camera = data.get("camera")
@@ -27,7 +30,7 @@ class Fog(BaseHTTPRequestHandler):
 
         if fraction >= 1:
             result = process_image(image)
-            decision = "local"
+            decision = "processed locally"
         else:
             split = int(image.height * fraction)
             local = process_image(image.crop((0, 0, image.width, split)))
@@ -46,6 +49,9 @@ class Fog(BaseHTTPRequestHandler):
             request = urllib.request.Request(cloud + "/store", data=result, headers={"Content-Type": "application/octet-stream", "X-Client-IP": self.client_address[0], "X-Filename": data["filename"]})
             urllib.request.urlopen(request, context=context).read()
 
+        end_time = time.perf_counter()
+        log_record = { "service": "fog", "timestamp": datetime.now().isoformat(), "client_ip": self.client_address[0], "camera": camera, "decision": decision, "original_size": len(original), "result_size": len(result), "verified": verified[0], "reference_hash": verified[1], "result_hash": verified[2], "processing_time": end_time - start_time}
+        send_log(log_record)
         self.send_response(200)
         self.end_headers()
         self.wfile.write(json.dumps({"decision": decision, "original_size": len(original), "result_size": len(result), "verified": verified[0]}).encode())
