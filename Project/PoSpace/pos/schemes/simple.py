@@ -40,3 +40,10 @@ class SimpleScheme(Scheme):
         if answer is None or not 0 <= answer < self.params.N:
             return False
         return function(answer) == y
+
+    def brute_force(self, function: HashFunction, y: int, budget: int) -> Optional[int]:
+        # Try x = 0, 1, 2, ... until f(x) = y or the budget runs out.
+        for x in range(min(budget, self.params.N)):
+            if function(x) == y:
+                return x
+        return None

@@ -1,7 +1,16 @@
-# Proof of Space: basic implementation
+# Proof of Space: implementation and attacks
 
-The simplest proof of space, with no security measures yet: a prover stores a
-table, a verifier sends challenges and checks the answers.
+A step-by-step implementation of proofs of space. We start with the simplest
+scheme (no security measures), attack it, add defences, and attack again.
+
+| Step | Type | Status |
+|---|---|---|
+| 1. Basic scheme: prover stores a table, verifier sends challenges | Construction | ✅ Done |
+| 2. Partial storage attack (keep part of the table, brute-force the rest) | Attack | ✅ Done |
+| 3. Repeated challenges + time limit | Defence | To do |
+| 4. Hellman's time-memory trade-off | Attack | To do |
+| 5. Collision-based construction (g_f) | Construction | To do |
+| 6. Nested Hellman attack | Attack | To do |
 
 **Contents**
 1. [Setup](#1-setup)
@@ -58,6 +67,24 @@ python main.py --n-bits 12 --challenges 20 --seed 42   # combine them
 | `--n-bits` | Table size, N = 2^n_bits | 8 (N = 256) |
 | `--challenges` | Number of challenges the verifier sends | 10 |
 | `--seed` | The plot's seed (its identity) | 1 |
+| `--prover` | `honest` or `partial` (the attack) | honest |
+| `--fraction` | Partial prover: share of the table it keeps (0 to 1) | 0.5 |
+| `--budget` | Partial prover: max hash calls per challenge for brute force | 0 |
+
+**Run the partial storage attack:**
+```bash
+python main.py --prover partial --fraction 0.5               # keeps 50%, no brute force
+python main.py --prover partial --fraction 0.5 --budget 100  # keeps 50%, brute-forces up to 100 tries
+python main.py --prover partial --fraction 0 --budget 256    # keeps nothing, brute-forces everything
+```
+
+**Compare the honest prover with many cheaters at once:**
+```bash
+python -m experiments.partial_storage
+python -m experiments.partial_storage --n-bits 12 --challenges 300
+```
+This prints one row per prover: how much it stores, how many challenges it
+passes, and how many hash calls it needs per challenge.
 
 **Run the tests:**
 ```bash
@@ -69,15 +96,17 @@ The output should end with `OK`.
 
 **What a successful run looks like:**
 ```
+Prover: honest
 Initialization (N = 2^8 = 256, seed = 1)
   table entries:     168
   storage:           1,344 bits
   setup evaluations: 256
 
 Challenges
-  #1   y = 164      answer x = 17       accepted
+  #1   y = 164      answer x = 17       accepted  (0 hash calls)
   ...
 Accepted 10/10
+Average hash calls per challenge: 0.0
 ```
 
 ---
@@ -98,8 +127,22 @@ Accepted 10/10
   produces about 37% of the possible values.
 - **The prover doesn't send the seed.** The verifier already knows which plot
   it's checking.
-- **Every function object counts its evaluations** (`calls`), so later we can
-  measure how much work an attacker does.
+- **Every function object counts its evaluations** (`calls`), so we can
+  measure how much work each prover does.
+
+**Attack: partial storage** (`pos/provers/partial_storage.py`)
+- The cheater builds the full table, keeps only part of it (e.g. 50%), and
+  throws the rest away to save space.
+- If a challenge's answer is in the part it kept, it looks it up instantly.
+- Otherwise it brute-forces: tries x = 0, 1, 2, … until f(x) = y, up to its budget.
+
+**What the attack shows** (N = 2^12):
+- Keeping 50% with no brute force passes about **50%** of challenges.
+- Keeping **nothing** but brute-forcing everything passes **100%**, at about
+  1,400 hash calls per challenge instead of 0.
+- So the basic scheme gives **no real guarantee**: a cheater can trade storage
+  for computation freely. The next step (repeated challenges and a time limit)
+  addresses this.
 
 ---
 
@@ -116,14 +159,17 @@ pos/
   provers/
     base.py         Prover interface: setup(), answer(y), storage_bits()
     honest.py       Honest prover: full table, answers by lookup
+    partial_storage.py  Attack: keeps part of the table, brute-forces the rest
   verifier.py       Verifier: new_challenge(), check(y, answer)
-main.py             Demo: initialization + challenges
+experiments/
+  partial_storage.py    Compares the honest prover with many cheaters
+main.py             Demo: initialization + challenges (choose the prover)
 tests/              unittest tests
 ```
 
 ---
 
-## 5. Group workflow (mandatory)
+## 5. Group workflow (mandatory so we don't mess up anything :)
 
 > **Rule: never commit directly to `main`.**
 > Every change goes on its own branch and reaches `main` through a pull request
@@ -252,6 +298,7 @@ Not sure how to resolve a conflict? Ask in the group chat before guessing.
 - **An attack** is a new `Prover` subclass in `pos/provers/`. Export it in
   `pos/provers/__init__.py`.
 - **A new construction** (e.g. the collision-based g_f) is a new `Scheme`
-  subclass in `pos/schemes/`. Register it in `SCHEMES` in `pos/schemes/__init__.py`.
+  subclass in `pos/schemes/`, implementing `build_plot`, `sample_challenge`,
+  `is_valid` and `brute_force`.
 - **Security measures** (repeated challenges, time limits) go in `verifier.py`.
 - **Add a test** in `tests/` for anything new, so the group knows it works.
