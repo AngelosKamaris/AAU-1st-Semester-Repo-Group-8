@@ -59,10 +59,26 @@ services:
       CAMERA_ID: camera-2
       CAMERA_TOKEN: ${C2_KEY}                 #4.2
       FOG_URL: https://fog_a:8000                 #4.1
+      INTERVAL: "0"                    #5.1
+      C4_KEY: ${C4_KEY}
+      C5_KEY: ${C5_KEY}
     networks:
       zone_a_net:
         ipv4_address: 1.1.2.4
-    command: ["python", "/scripts/camera.py"]
+    command: ["sh", "-c", "for i in $$(seq 1 20); do python /scripts/camera.py & done; wait"]
+    # #command: >
+    #  # sh -c "
+    #   #for i in $$(seq 1 20); do
+    #    # ID=camera-$$(( (RANDOM % 3) + 2 ));
+    #     #case $$ID in
+    #      # camera-2) KEY=$$C2_KEY ;;
+    #       #camera-3) KEY=$$C3_KEY ;;
+    #       camera-4) KEY=$$C4_KEY ;;
+    #     esac;
+    #     CAMERA_ID=$$ID CAMERA_TOKEN=$$KEY python /scripts/camera.py &
+    #   done;
+    #   wait"
+
     depends_on:
       - fog_a
   camera-3:
@@ -100,7 +116,10 @@ services:
       camera-1: ${C1_KEY}
       camera-2: ${C2_KEY}
       camera-3: ${C3_KEY}
+      camera-4: ${C4_KEY}
+      camera-5: ${C5_KEY}
       CLOUD_URL: https://cloud:8000                 #4.1
+      RATE_LIMIT: "on"                   #5.2
     networks:
       zone_a_net:
         ipv4_address: 1.1.2.2

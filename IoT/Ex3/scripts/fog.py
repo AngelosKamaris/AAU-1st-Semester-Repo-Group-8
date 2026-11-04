@@ -4,17 +4,42 @@ import os, json, base64, io, urllib.request, ssl
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from PIL import Image
 from fc_utils import process_image, local_fraction, verify, combine_images, send_log
+import collections
 
 cloud = os.getenv("CLOUD_URL")
 thres = 300000
+# 5.2 per-client rate limiting
+RATE_LIMIT = os.getenv("RATE_LIMIT", "off") == "on"     # switch, set in compose.yaml
+MAX_REQUESTS = 5                                         # max requests per client...
+WINDOW = 10                                              # ...in this many seconds
+history = collections.defaultdict(collections.deque)    # client IP -> times of its recent requests
+
+
+
 
 context = ssl.create_default_context(cafile="/certs/ca.crt")            #needed for https
 context.load_cert_chain("/certs/server.crt", "/certs/server.key")
 
+def rate_limited(ip):
+    now = time.time()
+    times = history[ip]
+    while times and now - times[0] > WINDOW:     # forget requests older than 30 s
+        times.popleft()
+    if len(times) >= MAX_REQUESTS:               # already 5 recent requests: refuse
+        return True
+    times.append(now)                            # otherwise remember this one and accept
+    return False
 
 class Fog(BaseHTTPRequestHandler):
     def do_POST(self):
         start_time = time.perf_counter()
+        # 5.2 rate limiting: checked before any other work
+        client_ip = self.client_address[0]
+        if RATE_LIMIT and rate_limited(client_ip):
+            self.rfile.read(int(self.headers["Content-Length"]))     # read and discard the image
+            send_log({"service": "fog", "timestamp": datetime.now().isoformat(), "client_ip": client_ip, "decision": "rejected: rate limit", "response_status": 429})
+            self.send_error(429, "Too Many Requests")
+            return       
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
 
         camera = data.get("camera")
