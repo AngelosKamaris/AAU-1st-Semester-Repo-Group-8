@@ -11,11 +11,16 @@ from pos.schemes import SimpleScheme
 
 
 class TestHashFunction(unittest.TestCase):
-    def test_deterministic_and_in_range(self):
+    def test_deterministic_and_full_size(self):
         f, g = HashFunction(3, 8), HashFunction(3, 8)
         for x in range(256):
             self.assertEqual(f(x), g(x))
-            self.assertTrue(0 <= f(x) < 256)
+            self.assertTrue(0 <= f(x) < 2 ** HashFunction.output_bits)
+
+    def test_no_collisions_with_full_output(self):
+        f = HashFunction(3, 10)
+        outputs = [f(x) for x in range(1024)]
+        self.assertEqual(len(set(outputs)), 1024)
 
     def test_different_seeds_give_different_functions(self):
         f, g = HashFunction(1, 12), HashFunction(2, 12)

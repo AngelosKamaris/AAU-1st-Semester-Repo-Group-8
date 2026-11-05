@@ -41,11 +41,3 @@ class Scheme(ABC):
     @abstractmethod
     def is_valid(self, function: Any, y: int, answer: Any) -> bool:
         """Verifier side: check that `answer` really solves challenge y."""
-
-    @abstractmethod
-    def brute_force(self, function: Any, y: int, budget: int) -> Any:
-        """Try to solve y from scratch, using at most `budget` evaluations of f.
-
-        Returns an answer, or None if none was found within the budget.
-        Used by provers that didn't store the whole table.
-        """

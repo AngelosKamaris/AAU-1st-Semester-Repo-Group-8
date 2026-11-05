@@ -1,10 +1,9 @@
 """Experiment: how well does the partial storage attack do?
 
-Runs the honest prover and several cheaters against the same verifier and
-prints one row per prover:
-  - how much they store,
-  - how many challenges they pass,
-  - how much work (hash calls) they do per challenge.
+Runs the honest prover and several cheaters (each keeping a different share
+of the table) against the same verifier, and prints one row per prover:
+  - how much they store, compared with the honest prover,
+  - how many challenges they pass.
 
 Run from the PoSpace folder:
     python -m experiments.partial_storage
@@ -19,14 +18,12 @@ from pos import PoSParams, Verifier
 from pos.provers import HonestProver, PartialStorageProver, Prover
 from pos.schemes import SimpleScheme
 
-FRACTIONS = [0.0, 0.25, 0.5, 0.75]       # share of the table the cheater keeps
-BUDGET_SHARES = [0.0, 0.1, 0.5, 1.0]     # brute-force budget, as a share of N
+FRACTIONS = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9]   # share of the table each cheater keeps
 
 
 def run(prover: Prover, verifier: Verifier, challenges: int) -> dict:
     """Set up one prover, send it `challenges` challenges, and collect results."""
     prover.setup()
-    setup_calls = prover.queries
     passed = 0
     for _ in range(challenges):
         y = verifier.new_challenge()
@@ -35,7 +32,6 @@ def run(prover: Prover, verifier: Verifier, challenges: int) -> dict:
         "prover": prover.name,
         "storage": prover.storage_bits(),
         "passed": passed / challenges,
-        "work": (prover.queries - setup_calls) / challenges,
     }
 
 
@@ -50,10 +46,7 @@ def main() -> None:
     N = scheme.params.N
 
     provers = [HonestProver(scheme)]
-    for fraction in FRACTIONS:
-        for share in BUDGET_SHARES:
-            provers.append(PartialStorageProver(
-                scheme, fraction, compute_budget=int(share * N), rng_seed=args.seed))
+    provers += [PartialStorageProver(scheme, f, rng_seed=args.seed) for f in FRACTIONS]
 
     # Every prover faces the same sequence of challenges (same verifier seed).
     results = [run(p, Verifier(scheme, rng_seed=args.seed), args.challenges) for p in provers]
@@ -61,11 +54,11 @@ def main() -> None:
     honest_storage = results[0]["storage"]
     print(f"\nPartial storage attack (N = 2^{args.n_bits} = {N}, "
           f"{args.challenges} challenges each)\n")
-    print(f"{'Prover':<36} {'Storage':>9} {'Passed':>8} {'Hash calls/challenge':>22}")
-    print("-" * 78)
+    print(f"{'Prover':<24} {'Storage':>9} {'Passed':>9}")
+    print("-" * 44)
     for r in results:
         storage = f"{r['storage'] / honest_storage:.0%}"
-        print(f"{r['prover']:<36} {storage:>9} {r['passed']:>8.1%} {r['work']:>22,.1f}")
+        print(f"{r['prover']:<24} {storage:>9} {r['passed']:>9.1%}")
     print("\nStorage is shown relative to the honest prover.")
 
 

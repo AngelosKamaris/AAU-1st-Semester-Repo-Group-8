@@ -4,7 +4,7 @@ Examples:
     python main.py                                         # honest prover
     python main.py --n-bits 12 --challenges 20 --seed 42
     python main.py --prover partial --fraction 0.5         # cheater keeps 50%
-    python main.py --prover partial --fraction 0.5 --budget 100
+    python main.py --prover partial --fraction 0.25        # cheater keeps 25%
 """
 
 from __future__ import annotations
@@ -21,23 +21,24 @@ def build_prover(args, scheme):
     if args.prover == "honest":
         return HonestProver(scheme)
     if args.prover == "partial":
-        return PartialStorageProver(
-            scheme, fraction=args.fraction, compute_budget=args.budget, rng_seed=args.seed
-        )
+        return PartialStorageProver(scheme, fraction=args.fraction, rng_seed=args.seed)
     raise ValueError(f"unknown prover {args.prover}")
+
+
+def short(y: int) -> str:
+    """Show a long hash value as its first 12 hex digits, for readable output."""
+    return f"{y:064x}"[:12] + "..."
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Proof of space demo")
     parser.add_argument("--n-bits", type=int, default=8, help="domain size N = 2^n_bits")
     parser.add_argument("--seed", type=int, default=1, help="plot seed")
-    parser.add_argument("--challenges", type=int, default=10, help="number of challenges")
+    parser.add_argument("--challenges", type=int, default=1, help="number of challenges") #Changed 10 challenges to 1 challenge for Angelos's sake
     parser.add_argument("--prover", choices=["honest", "partial"], default="honest",
                         help="which prover to run")
     parser.add_argument("--fraction", type=float, default=0.5,
                         help="partial prover: share of the table it keeps (0 to 1)")
-    parser.add_argument("--budget", type=int, default=0,
-                        help="partial prover: max hash calls per challenge for brute force")
     args = parser.parse_args()
 
     scheme = SimpleScheme(PoSParams(n_bits=args.n_bits, seed=args.seed))
@@ -63,7 +64,7 @@ def main() -> None:
         work = prover.queries - calls_before
         ok = verifier.check(y, answer)
         accepted += ok
-        print(f"  #{i:<3} y = {y:<8} answer x = {answer!s:<8} "
+        print(f"  #{i:<3} y = {short(y)}  answer x = {answer!s:<8} "
               f"{'accepted' if ok else 'rejected':<9} ({work} hash calls)")
 
     answer_calls = prover.queries - setup_calls

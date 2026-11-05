@@ -43,13 +43,10 @@ class TestPartialStorage(unittest.TestCase):
         cheater = PartialStorageProver(self.scheme, fraction=0.5, rng_seed=1)
         self.assertAlmostEqual(pass_rate(cheater, self.scheme), 0.5, delta=0.12)
 
-    def test_full_brute_force_passes_without_storage(self):
-        cheater = PartialStorageProver(
-            self.scheme, fraction=0.0, compute_budget=self.N, rng_seed=1
-        )
-        self.assertEqual(pass_rate(cheater, self.scheme, challenges=50), 1.0)
-        self.assertEqual(cheater.storage_bits(), 0)
-        self.assertGreater(cheater.queries, self.N)  # it did real work
+    def test_never_does_extra_work(self):
+        cheater = PartialStorageProver(self.scheme, fraction=0.5, rng_seed=1)
+        pass_rate(cheater, self.scheme)
+        self.assertEqual(cheater.queries, self.N)  # only the setup hashes, nothing per challenge
 
 
 if __name__ == "__main__":
