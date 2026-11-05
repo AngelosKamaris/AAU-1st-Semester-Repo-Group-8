@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from typing import Any, Dict, Optional
 
 
@@ -27,3 +28,11 @@ class Plot:
 
     def storage_bits(self) -> int:
         return len(self._entries) * self.entry_bits
+
+    def random_subset(self, fraction: float, rng: random.Random) -> "Plot":
+        """Keep a random `fraction` of the entries (used by cheating provers)."""
+        if not 0.0 <= fraction <= 1.0:
+            raise ValueError("fraction must be between 0 and 1")
+        keys = list(self._entries)
+        kept = rng.sample(keys, round(fraction * len(keys)))
+        return Plot({k: self._entries[k] for k in kept}, self.entry_bits)
