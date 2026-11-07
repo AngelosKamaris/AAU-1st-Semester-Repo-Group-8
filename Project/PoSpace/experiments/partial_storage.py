@@ -1,4 +1,5 @@
-"""Experiment: how well does the partial storage attack do?
+"""
+Experiment: how well does the partial storage attack do?
 
 Runs the honest prover and several cheaters (each keeping a different share
 of the table) against the same verifier, and prints one row per prover:
