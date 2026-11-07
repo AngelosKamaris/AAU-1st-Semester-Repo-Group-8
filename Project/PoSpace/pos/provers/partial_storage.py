@@ -1,4 +1,5 @@
-"""Attack 1: partial storage.
+"""
+Attack 1: partial storage.
 
 The cheater builds the full table during setup, keeps only `fraction` of it
 (e.g. 50% or 25%), and throws the rest away to save space.
@@ -24,6 +25,9 @@ from pos.schemes.base import Scheme
 class PartialStorageProver(Prover):
     def __init__(self, scheme: Scheme, fraction: float, rng_seed: Optional[int] = None) -> None:
         super().__init__(scheme)
+        # Reject bool/str/None/nan/out-of-range
+        if (isinstance(fraction, bool) or not isinstance(fraction, (int, float)) or not 0.0 <= fraction <= 1.0):
+            raise ValueError(f"fraction must be a number between 0 and 1, got {fraction!r}")
         self.fraction = fraction
         self.rng = random.Random(rng_seed)  # decides which entries are kept
         self.name = f"partial({fraction:.0%} stored)"
