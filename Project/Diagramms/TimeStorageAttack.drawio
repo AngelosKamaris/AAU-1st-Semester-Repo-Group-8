@@ -1,10 +1,10 @@
 <mxfile host="65bd71144e">
     <diagram name="Time-storage attack" id="time-storage-attack">
-        <mxGraphModel dx="731" dy="310" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="700" math="0" shadow="0">
+        <mxGraphModel dx="1672" dy="799" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="700" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
-                <mxCell id="n2" parent="1" style="html=1;whiteSpace=wrap;fontSize=24;fontColor=#222222;align=left;verticalAlign=top;fillColor=none;strokeColor=none;fontStyle=1;spacingLeft=6;" value="Time/storage attack: keep part of the table, brute-force the rest" vertex="1">
+                <mxCell id="n2" parent="1" style="html=1;whiteSpace=wrap;fontSize=24;fontColor=#222222;align=left;verticalAlign=top;fillColor=none;strokeColor=none;fontStyle=1;spacingLeft=6;" value="Time-storage attack: keep part of the table, brute-force the rest" vertex="1">
                     <mxGeometry height="34" width="1220" x="40" y="14" as="geometry"/>
                 </mxCell>
                 <mxCell id="n3" parent="1" style="html=1;whiteSpace=wrap;fontSize=13;fontColor=#555555;align=left;verticalAlign=top;fillColor=none;strokeColor=none;spacingLeft=6;" value="The cheater keeps a share &lt;i&gt;p&lt;/i&gt; of the table. It never fails: a miss costs hash calls instead." vertex="1">
@@ -52,7 +52,7 @@
                 <mxCell id="n17" parent="1" style="html=1;whiteSpace=wrap;fontSize=16;fontColor=#222222;align=left;verticalAlign=top;fillColor=none;strokeColor=none;fontStyle=1;spacingLeft=6;" value="2.&amp;nbsp; CHALLENGE: the verifier sends y = f(x*), x* unknown" vertex="1">
                     <mxGeometry height="26" width="900" x="50" y="316" as="geometry"/>
                 </mxCell>
-                <mxCell id="n18" parent="1" style="html=1;whiteSpace=wrap;fontSize=14;fontColor=#222222;align=center;verticalAlign=middle;rounded=1;arcSize=8;fillColor=#fdebd0;strokeColor=#d35400;strokeWidth=2;fontStyle=1;" value="challenge y" vertex="1">
+                <mxCell id="n18" parent="1" style="html=1;whiteSpace=wrap;fontSize=14;align=center;verticalAlign=middle;rounded=1;arcSize=8;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontStyle=1;" value="challenge y" vertex="1">
                     <mxGeometry height="50" width="140" x="60" y="380" as="geometry"/>
                 </mxCell>
                 <mxCell id="n19" edge="1" parent="1" style="edgeStyle=none;html=1;endArrow=block;endFill=1;strokeColor=#333333;strokeWidth=2;">
