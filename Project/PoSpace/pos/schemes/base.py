@@ -41,3 +41,7 @@ class Scheme(ABC):
     @abstractmethod
     def is_valid(self, function: Any, y: int, answer: Any) -> bool:
         """Verifier side: check that `answer` really solves challenge y."""
+
+    def is_domain_element(self, value: Any) -> bool:
+        """Sanitize prover input: True only for a genuine int in [0, N). """
+        return type(value) is int and 0 <= value < self.params.N
