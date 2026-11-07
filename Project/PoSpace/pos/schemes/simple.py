@@ -9,7 +9,7 @@ Check:          the verifier computes f(x') and compares it with y.
 from __future__ import annotations
 
 import random
-from typing import Optional
+from typing import Any
 
 from pos.functions import HashFunction
 from pos.plot import Plot
@@ -36,7 +36,8 @@ class SimpleScheme(Scheme):
         # Picking y = f(x) for a random x guarantees an answer exists.
         return function(rng.randrange(self.params.N))
 
-    def is_valid(self, function: HashFunction, y: int, answer: Optional[int]) -> bool:
-        if answer is None or not 0 <= answer < self.params.N:
+    def is_valid(self, function: HashFunction, y: int, answer: Any) -> bool:
+        # The answer comes from the prover: only evaluate f on a real int in [0, N).
+        if not self.is_domain_element(answer):
             return False
         return function(answer) == y
