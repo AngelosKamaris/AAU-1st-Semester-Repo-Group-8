@@ -1,45 +1,64 @@
 import time
 from datetime import datetime
 import os, json, base64, io, urllib.request, ssl
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import threading
 from PIL import Image
 from fc_utils import process_image, local_fraction, verify, combine_images, send_log
 import collections
 
 cloud = os.getenv("CLOUD_URL")
 thres = 300000
-# 5.2 per-client rate limiting
-RATE_LIMIT = os.getenv("RATE_LIMIT", "off") == "on"     # switch, set in compose.yaml
-MAX_REQUESTS = 5                                         # max requests per client...
-WINDOW = 10                                              # ...in this many seconds
-history = collections.defaultdict(collections.deque)    # client IP -> times of its recent requests
-
-
 
 
 context = ssl.create_default_context(cafile="/certs/ca.crt")            #needed for https
 context.load_cert_chain("/certs/server.crt", "/certs/server.key")
 
-def rate_limited(ip):
-    now = time.time()
-    times = history[ip]
-    while times and now - times[0] > WINDOW:     # forget requests older than 30 s
-        times.popleft()
-    if len(times) >= MAX_REQUESTS:               # already 5 recent requests: refuse
+# 5.2 per-client rate limiting
+RATE_LIMIT = os.getenv("RATE_LIMIT", "off") == "on"      # we set it in the compose.yaml
+MAX_REQUESTS = 5                                           # max number of requests 
+WINDOW = 30                                         
+history = collections.defaultdict(collections.deque)          # times of its recent requests
+MAX_IN_FLIGHT = 1                                        # make sure only one request is in progress per camera
+in_flight = collections.defaultdict(int)           # the requests currently being processed
+lock = threading.Lock()                                  # threads share history and in_flight
+
+def admit(ip):
+    with lock:
+        if in_flight[ip] >= MAX_IN_FLIGHT:       # if client already has a request in progress, we refuse
+            return False
+        times = history[ip]
+        now = time.time()
+        while times and now - times[0] > WINDOW:    # we ignore requests older than the WINDOW 
+            times.popleft()
+        if len(times) >= MAX_REQUESTS:        # if 5 requests in the last 30s (window), we refuse
+            return False
+        times.append(now)              # if we accept, we keep it 
+        in_flight[ip] += 1
         return True
-    times.append(now)                            # otherwise remember this one and accept
-    return False
+
+def finish(ip):
+    with lock:
+        in_flight[ip] -= 1       # request is done
+
 
 class Fog(BaseHTTPRequestHandler):
     def do_POST(self):
-        start_time = time.perf_counter()
-        # 5.2 rate limiting: checked before any other work
+        # 5.2 mitigation: checked before any other work
         client_ip = self.client_address[0]
-        if RATE_LIMIT and rate_limited(client_ip):
+        if RATE_LIMIT and not admit(client_ip):
             self.rfile.read(int(self.headers["Content-Length"]))     # read and discard the image
             send_log({"service": "fog", "timestamp": datetime.now().isoformat(), "client_ip": client_ip, "decision": "rejected: rate limit", "response_status": 429})
             self.send_error(429, "Too Many Requests")
-            return       
+            return
+        try:
+            self.handle_image()
+        finally:
+            if RATE_LIMIT:
+                finish(client_ip)                # always release, even if processing fails
+
+    def handle_image(self):
+        start_time = time.perf_counter()
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
 
         camera = data.get("camera")
@@ -81,7 +100,7 @@ class Fog(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps({"decision": decision, "original_size": len(original), "result_size": len(result), "verified": verified[0]}).encode())
 
-server = HTTPServer(("0.0.0.0", 8000), Fog)
+server = ThreadingHTTPServer(("0.0.0.0", 8000), Fog)
 server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 server_context.load_cert_chain("/certs/server.crt", "/certs/server.key")
 server.socket = server_context.wrap_socket(server.socket, server_side=True)

@@ -65,6 +65,7 @@ services:
     networks:
       zone_a_net:
         ipv4_address: 1.1.2.4
+    #command: ["python", "/scripts/camera.py"]
     command: ["sh", "-c", "for i in $$(seq 1 20); do python /scripts/camera.py & done; wait"]
     # #command: >
     #  # sh -c "
@@ -116,10 +117,10 @@ services:
       camera-1: ${C1_KEY}
       camera-2: ${C2_KEY}
       camera-3: ${C3_KEY}
-      camera-4: ${C4_KEY}
-      camera-5: ${C5_KEY}
+      # camera-4: ${C4_KEY}
+      # camera-5: ${C5_KEY}
       CLOUD_URL: https://cloud:8000                 #4.1
-      RATE_LIMIT: "on"                   #5.2
+      RATE_LIMIT: "off"                   #5.2
     networks:
       zone_a_net:
         ipv4_address: 1.1.2.2
