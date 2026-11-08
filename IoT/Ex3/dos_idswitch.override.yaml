@@ -1,0 +1,24 @@
+# Task 5.3 (Variant 1): one device changing its identity.
+# camera-2 floods fog_a with 20 processes that rotate through the valid camera
+# IDs (camera-1/2/3) and matching tokens. All requests still come from ONE IP
+# (1.1.2.4), so the per-IP rate limiter should still block them.
+# Rate limiting is ON here, to test whether the mitigation survives ID-switching.
+services:
+  camera-2:
+    environment:
+      C1_KEY: ${C1_KEY}
+      C2_KEY: ${C2_KEY}
+      C3_KEY: ${C3_KEY}
+    command:
+      - sh
+      - -c
+      - |
+        for i in $$(seq 1 20); do
+          n=$$(( i % 3 + 1 ))
+          eval "KEY=\$$C$${n}_KEY"
+          CAMERA_ID="camera-$$n" CAMERA_TOKEN="$$KEY" python /scripts/camera.py &
+        done
+        wait
+  fog_a:
+    environment:
+      RATE_LIMIT: "on"

@@ -1,0 +1,7 @@
+# DoS with mitigation: same flood, but per-client rate limiting is on at fog_a.
+services:
+  camera-2:
+    command: ["sh", "-c", "for i in $$(seq 1 20); do python /scripts/camera.py & done; wait"]
+  fog_a:
+    environment:
+      RATE_LIMIT: "on"

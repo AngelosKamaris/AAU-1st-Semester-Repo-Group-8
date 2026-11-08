@@ -1,0 +1,7 @@
+# DoS: camera-2 runs 20 parallel camera processes flooding fog_a; no mitigation.
+services:
+  camera-2:
+    command: ["sh", "-c", "for i in $$(seq 1 20); do python /scripts/camera.py & done; wait"]
+  fog_a:
+    environment:
+      RATE_LIMIT: "off"

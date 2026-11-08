@@ -1,0 +1,7 @@
+# Baseline: camera-2 behaves as a normal camera, no rate limiting.
+services:
+  camera-2:
+    command: ["python", "/scripts/camera.py"]
+  fog_a:
+    environment:
+      RATE_LIMIT: "off"
