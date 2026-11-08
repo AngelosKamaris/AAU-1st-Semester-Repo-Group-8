@@ -53,8 +53,13 @@ class TestAnswerSanitizing(unittest.TestCase):
 
 class TestParamsValidation(unittest.TestCase):
     def test_valid_params(self):
-        self.assertEqual(PoSParams(n_bits=1, seed=0).N, 2)
+        self.assertEqual(PoSParams(n_bits=1, seed=0, function="blake2b").N, 2)
         self.assertEqual(PoSParams(n_bits=MAX_N_BITS, seed=2 ** 128 - 1).n_bits, MAX_N_BITS)
+
+    def test_feistel_requires_even_n_bits(self):
+        for n_bits in (1, 3, 5):
+            with self.subTest(n_bits=n_bits), self.assertRaises(ValueError):
+                PoSParams(n_bits=n_bits)
 
     def test_bad_n_bits(self):
         for bad in (0, -1, MAX_N_BITS + 1, 40, True, 2.5, "8", None):
@@ -102,7 +107,7 @@ class TestCommandLineValidation(unittest.TestCase):
                     validator(bad)
 
     def test_main_gives_usage_error_not_traceback(self):
-        for args in (["--challenges", "0"], ["--n-bits", "40"], ["--fraction", "2"]):
+        for args in (["--challenges", "0"], ["--n-bits", "40"], ["--n-bits", "3"], ["--fraction", "2"]):
             with self.subTest(args=args):
                 run = subprocess.run([sys.executable, "main.py", *args], capture_output=True, text=True)
                 self.assertEqual(run.returncode, 2)

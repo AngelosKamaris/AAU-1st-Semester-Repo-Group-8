@@ -35,3 +35,15 @@ def fraction(text: str) -> float:
 n_bits_arg = int_in_range(1, MAX_N_BITS)
 seed_arg = int_in_range(0, (1 << SEED_BITS) - 1)
 challenges_arg = int_in_range(1)
+rounds_arg = int_in_range(1, 1000)
+
+
+def master_key_arg(text: str) -> bytes:
+    """Parse a 128-bit Feistel key written as hexadecimal."""
+    try:
+        key = bytes.fromhex(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be a 32-character hexadecimal key") from None
+    if len(key) != 16 or len(text) != 32:
+        raise argparse.ArgumentTypeError("must be a 32-character hexadecimal key")
+    return key

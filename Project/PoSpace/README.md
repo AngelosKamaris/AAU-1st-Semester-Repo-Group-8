@@ -6,7 +6,7 @@ A step-by-step implementation of proofs of space. We start with the simplest sch
 |---|---|---|
 | 1. Basic scheme: prover stores a table, verifier sends challenges | Construction | ✅ Done |
 | 2. Partial storage attack (keep only part of the table) and time-storage attack (brute-force the rest) | Attack | ✅ Done |
-| 3. Repeated challenges + time limit | Defence | To do |
+| 3. Repeated challenges (time limit still to do) | Defence | Repeated challenges supported |
 | 4. Hellman's time-memory trade-off | Attack | To do |
 | 5. Collision-based construction (g_f) | Construction | To do |
 | 6. Nested Hellman attack | Attack | To do |
@@ -57,33 +57,40 @@ If `python` isn't recognised, use `py` (Windows) or `python3` (Mac/Linux).
 **What a successful run looks like:**
 ```
 Prover: honest
-Initialization (N = 2^8 = 256, seed = 1)
-  table entries:     256
-  storage:           67,584 bits
-  setup evaluations: 256
-  setup time:        0.000 s
+Initialization (N = 2^16 = 65536, function = feistel)
+  table entries:     65,536
+  storage:           2,097,152 bits
+  setup evaluations: 65,536
+  setup time:        <elapsed> s
 
 Challenges
-  #1   y = 351e604a30d7...  answer x = 68       accepted  (0 hash calls, 0.00 ms)
+  #1   y = <challenge>  answer x = <preimage>  accepted  (0 function calls, <time> ms)
 
-Accepted 1/1
-Average hash calls per challenge: 0.0
+Valid answers: 1/1
+Proof accepted
+Average function calls per challenge: 0.0
 Average time per challenge:       0.00 ms
 ```
 - **Initialization** is done once: the prover builds its table, and we print how big it is.
 - **Each challenge line** shows the challenge `y` (shortened), the prover's answer, whether the verifier accepted it, and the prover's work for that challenge.
-- Work is reported two ways: **hash calls** (the same on every machine, our main measure) and **wall-clock time** (depends on your computer). The time covers only the prover answering, not the verifier checking.
+- Work is reported two ways: **function calls** (the same on every machine, our main measure) and **wall-clock time** (depends on your computer). The time covers only the prover answering, not the verifier checking.
+- `--challenges` is the number of independent challenges required in one proof; all answers must be valid.
 
 **Options** (combine them freely; `python main.py --help` lists them):
 ```bash
 python main.py --n-bits 12 --challenges 20 --seed 42
 python main.py --prover timestorage --fraction 0.5
+python main.py --function blake2b --n-bits 16
+python main.py --function feistel --n-bits 16 --rounds 8 --master-key 00112233445566778899aabbccddeeff
 ```
 
 | Option | Meaning | Allowed | Default |
 |---|---|---|---|
-| `--n-bits` | Table size, N = 2^n_bits | integer, 1 to 24 | 8 (N = 256) |
-| `--challenges` | Number of challenges the verifier sends | integer, at least 1 | 1 |
+| `--n-bits` | Table size, N = 2^n_bits | 1 to 24; even and at least 2 for Feistel | 16 (N = 65,536) |
+| `--function` | Function used for the plot | `feistel`, `blake2b` | `feistel` |
+| `--rounds` | Number of Feistel rounds | positive integer | 8 |
+| `--master-key` | Feistel key for repeatable plots | 32 hex characters | random key |
+| `--challenges` | Independent challenges required in one proof; all must pass | integer, at least 1 | 1 |
 | `--seed` | The plot's seed (its identity): a different seed gives a completely different table | integer, 0 to 2^128 - 1 | 1 |
 | `--prover` | Who answers: `honest`, or one of the attacks `partial`, `timestorage` (see [section 4](#4-attacks)) | one of the three | honest |
 | `--fraction` | For the attacks: share of the table the cheater keeps | number, 0 to 1 | 0.5 |
@@ -95,9 +102,11 @@ A value outside the allowed range gives a short usage error, for example `main.p
 ## 3. The basic scheme
 
 **Initialization (done once by the prover)**
-- The function is f(x) = BLAKE2b(seed, x), using the **full 256-bit hash output**.
-- Inputs x come from [0, N), with N = 2^n_bits.
-- The prover computes f(x) for every x in [0, N) and stores a table f(x) → x.
+- By default, `f` is an 8-round balanced Feistel permutation over `[0, N)`, with `N = 2^n_bits`.
+- The input is split into equal halves; keyed BLAKE2b rounds transform them and preserve a permutation.
+- A random 128-bit master key is generated for each plot. Pass `--master-key` to repeat a plot.
+- The original BLAKE2b function remains available with `--function blake2b`.
+- The prover computes `f(x)` for every input and stores a table `f(x) -> x`.
 
 **Proof of execution (repeated every round)**
 1. The verifier picks a random x and sends the challenge y = f(x).
@@ -105,19 +114,18 @@ A value outside the allowed range gives a short usage error, for example `main.p
 3. The verifier checks: the answer is a genuine integer (not a float, string, `None`, ...), x is in range, and f(x) equals y.
 
 **Notes**
-- **We don't reduce the output mod N.** The hash keeps its full strength, so the   scheme's weakness can't be blamed on a weakened function. Finding x for a given y still takes up to N tries, because there are only N possible inputs. That is what the proof of space relies on.
-- **No collisions in practice.** With 256-bit outputs, two x values practically never give the same y, so the table has exactly N entries.
-- **Each entry stores y and x** (256 + n_bits bits). The output shows y as its first 12 hex digits to keep it readable.
-- **The prover doesn't send the seed.** The verifier already knows which plot it's checking.
+- **Every Feistel output appears exactly once**, so the plot has exactly N entries.
+- **Each Feistel entry stores y and x** (2 · n_bits bits).
+- **The inverse helper is kept separate from the forward function** and is used only for trusted tests; this models restricted oracle access, not a public one-way permutation.
 - **Every function object counts its evaluations** (`calls`), so we can measure how much work each prover does.
 
-**Look at the prover's table** (the first 20 rows, y shortened to 12 hex digits):
+**Look at the prover's table** (the first 20 rows):
 ```bash
-python -c "from pos import PoSParams; from pos.schemes import SimpleScheme; from pos.provers import HonestProver; p = HonestProver(SimpleScheme(PoSParams(n_bits=8, seed=1))); p.setup(); [print(f'{y:064x}'[:12], '->', x) for y, x in sorted(p.plot._entries.items())[:20]]"
+python -c "from pos import PoSParams; from pos.schemes import SimpleScheme; from pos.provers import HonestProver; p = HonestProver(SimpleScheme(PoSParams(n_bits=8, seed=1))); p.setup(); [print(f'{y:x}', '->', x) for y, x in sorted(p.plot._entries.items())[:20]]"
 ```
 Change `seed=1` or `n_bits=8` to look at other plots, remove `[:20]` to print everything, or swap `HonestProver(...)` for `PartialStorageProver(..., fraction=0.5, rng_seed=1)` to see a cheater's table.
 
-**What to point out:** the prover builds the table once and then answers every challenge with a lookup (0 hash calls). Storage grows with N, and every seed gives its own plot.
+**What to point out:** the prover builds the table once and then answers every challenge with a lookup (0 function calls). Storage grows with N.
 
 ---
 
@@ -143,14 +151,15 @@ Suggested order for a demo: the basic scheme (section 3), then 4.1, 4.2 and sect
 
 **How to run it**
 ```bash
-python main.py --prover partial --fraction 0.5 --challenges 10     # keeps 50%: passes about half
-python main.py --prover partial --fraction 0 --challenges 10       # keeps nothing: fails everything
+python main.py --prover partial --fraction 0.5 --challenges 1      # one challenge: about 50% success
+python main.py --prover partial --fraction 0.5 --challenges 5      # all five must pass: about 3% success
+python main.py --prover partial --fraction 0 --challenges 1        # keeps nothing: proof fails
 python -m experiments.partial_storage                              # honest prover vs many cheaters, N = 4096
 python -m experiments.partial_storage --n-bits 14 --challenges 500 # bigger, more accurate
 ```
 The experiment prints one row per prover: how much it stores and how many challenges it passes.
 
-**What it shows** (N = 2^12):
+**What it shows** (N = 2^12, one challenge per proof):
 
 | Stored | Challenges passed |
 |---|---|
@@ -162,6 +171,7 @@ The experiment prints one row per prover: how much it stores and how many challe
 
 - A cheater passes about **as often as the share of the table it kept**, while using only that share of the space.
 - With **one challenge per proof**, a cheater keeping 50% fools the verifier half the time. So the basic scheme gives **no real guarantee**.
+- Increasing `--challenges` requires every challenge to pass, reducing partial-storage success to about p^c for c independent challenges.
 
 ### 4.2 Time/storage
 
@@ -182,7 +192,7 @@ python -m experiments.time_storage --n-bits 14 --challenges 100                 
 Look at the "hash calls" and "ms" printed after each challenge: a hit costs 0,
 a miss costs thousands.
 
-**What it shows** (N = 2^14, 100 challenges; time depends on the machine):
+**Historical results for the previous BLAKE2b setup** (N = 2^14, 100 challenges; time depends on the machine):
 
 | Stored | Challenges passed | Avg hash calls | Expected (1-p)²·N/2 | Avg time |
 |---|---|---|---|---|
@@ -207,7 +217,8 @@ The prover is untrusted, and users make typos, so inputs are checked where they 
 | Where | What is checked | Where in the code |
 |---|---|---|
 | The prover's answer | must be a real `int` (not `float`, `str`, `list`, `None`, not even `True`) in [0, N). Anything else is rejected, never converted. The verifier does not crash and spends no hash calls on it. | `Scheme.is_domain_element()` in `pos/schemes/base.py`, used by `SimpleScheme.is_valid()` |
-| Plot parameters | `n_bits` is an `int` from 1 to `MAX_N_BITS` (24, so a typo can't try to build a 2^40 table); `seed` is an `int` from 0 to 2^128 - 1 (it is stored in a 16-byte key) | `PoSParams` in `pos/params.py` |
+| Plot parameters | `n_bits` is an `int` from 1 to `MAX_N_BITS` (24); Feistel additionally requires an even width of at least 2 | `PoSParams` in `pos/params.py` |
+| Feistel settings | Positive round count and optional 16-byte master key | `PoSParams` in `pos/params.py` |
 | Cheater settings | `fraction` is a number from 0 to 1 (rejects `nan`, `True`, strings, `None`), checked when the prover is created | `PartialStorageProver` (also used by `TimeStorageProver`) |
 | Command line | `--n-bits`, `--seed`, `--challenges`, `--fraction` give a clear usage error instead of a traceback | `pos/cli.py`, used by `main.py` and `experiments/time_storage.py` |
 
@@ -215,6 +226,7 @@ The prover is untrusted, and users make typos, so inputs are checked where they 
 ```bash
 python main.py --challenges 0                    # usage error, not a crash
 python main.py --n-bits 40                       # too big: refused before building a huge table
+python main.py --n-bits 3                        # Feistel requires an even width
 python main.py --prover partial --fraction 2     # fraction must be between 0 and 1
 ```
 - To allow bigger tables, raise `MAX_N_BITS` in `pos/params.py` (you need the memory for N entries).
@@ -234,6 +246,7 @@ Run the full set before every commit/push.
 | File | What it checks |
 |---|---|
 | `test_basic.py` | The hash function, and the protocol with the honest prover |
+| `test_feistel.py` | Feistel permutation, determinism, exhaustive uniqueness, and trusted inverse |
 | `test_partial_storage.py` | The partial storage attack |
 | `test_time_storage.py` | The time/storage attack |
 | `test_verifier.py` | Input sanitizing: prover answers, parameters, command line |
@@ -246,11 +259,12 @@ Run the full set before every commit/push.
 pos/
   params.py         PoSParams: n_bits (N = 2^n_bits) and the plot seed, with range/type checks
   cli.py            Validators for command-line arguments (--n-bits, --seed, --challenges, --fraction)
-  functions.py      HashFunction: f(x) = BLAKE2b(seed, x), full 256-bit output, counts its calls
+  functions.py      HashFunction: original BLAKE2b comparison function
+  feistel.py        FeistelPermutation: forward-only permutation and trusted inverse helper
   plot.py           Plot: the stored table (f(x) -> x), reports its size in bits
   schemes/
     base.py         Scheme interface: build plot, pick challenge, check answer; is_domain_element() sanitizes answers
-    simple.py       The simple scheme described above
+    simple.py       Selects Feistel or BLAKE2b and builds the plot
   provers/
     base.py         Prover interface: setup(), answer(y), storage_bits()
     honest.py       Honest prover: full table, answers by lookup

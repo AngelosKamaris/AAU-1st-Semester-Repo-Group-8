@@ -5,9 +5,34 @@ from __future__ import annotations
 import unittest
 
 from pos import PoSParams, Verifier
+from pos.feistel import FeistelPermutation, trusted_inverse
 from pos.functions import HashFunction
 from pos.provers import HonestProver
 from pos.schemes import SimpleScheme
+
+
+class TestFeistelPermutation(unittest.TestCase):
+    def test_16_bit_mapping_is_a_permutation_and_inverse_recovers_input(self):
+        key = bytes.fromhex("00112233445566778899aabbccddeeff")
+        function = FeistelPermutation(key, 16)
+        outputs = [function(x) for x in range(function.N)]
+        self.assertEqual(len(set(outputs)), function.N)
+        self.assertTrue(all(0 <= y < function.N for y in outputs))
+        for x, y in enumerate(outputs):
+            self.assertEqual(trusted_inverse(y, key, 16), x)
+
+    def test_same_key_is_deterministic_and_another_key_changes_mapping(self):
+        key = bytes(16)
+        first = FeistelPermutation(key, 8)
+        second = FeistelPermutation(key, 8)
+        other = FeistelPermutation(bytes([1]) + bytes(15), 8)
+        self.assertEqual([first(x) for x in range(first.N)], [second(x) for x in range(second.N)])
+        self.assertNotEqual([first(x) for x in range(first.N)], [other(x) for x in range(other.N)])
+
+    def test_forward_function_does_not_expose_inverse_or_plot(self):
+        function = FeistelPermutation(bytes(16), 8)
+        self.assertFalse(hasattr(function, "inverse"))
+        self.assertFalse(hasattr(function, "table"))
 
 
 class TestHashFunction(unittest.TestCase):
