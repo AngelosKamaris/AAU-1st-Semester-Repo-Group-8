@@ -1,0 +1,22 @@
+# Task 5.4: ID spoofing. 
+# We add a rogue camera client (1.1.2.5) on zone_a_net that claims to be camera-1 (1.1.2.3)
+# but keeps its own token, which is what an outside attacker who doesn't know camera-1's real secret would send.
+
+services:
+  camera-spoof:
+    volumes:
+      - ./images:/images:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    build:
+      context: ./
+    container_name: camera-spoof
+    environment:
+      CAMERA_ID: camera-1
+      CAMERA_TOKEN: "not-the-real-token"
+      FOG_URL: https://fog_a:8000
+    networks:
+      zone_a_net:
+        ipv4_address: 1.1.2.5
+    command: ["python", "/scripts/camera.py"]
+    depends_on:
+      - fog_a
