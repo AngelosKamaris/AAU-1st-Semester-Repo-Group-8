@@ -30,15 +30,19 @@ def run(prover: Prover, verifier: Verifier, challenges: int) -> dict:
     setup_calls = prover.queries
     passed = 0
     seconds = 0.0
+    max_calls = 0
     for _ in range(challenges):
         y = verifier.new_challenge()
+        calls_before = prover.queries
         start = time.perf_counter()
         answer = prover.answer(y) # only the prover's work is timed
         seconds += time.perf_counter() - start
+        max_calls = max(max_calls, prover.queries - calls_before)
         passed += verifier.check(y, answer)
     return {
-        "prover": prover.name, "storage": prover.storage_bits(), "passed": passed / challenges,
-        "calls": (prover.queries - setup_calls) / challenges, "ms": seconds / challenges * 1000,
+        "prover": prover.name, "storage": prover.storage_bits(), "entries": len(prover.plot),
+        "passed": passed / challenges, "calls": (prover.queries - setup_calls) / challenges, 
+        "max_calls": max_calls, "ms": seconds / challenges * 1000,
     }
 
 def print_results(results: list[dict], args: argparse.Namespace, N: int) -> None:
@@ -46,16 +50,23 @@ def print_results(results: list[dict], args: argparse.Namespace, N: int) -> None
 
     honest_storage = results[0]["storage"]
     print(f"\nTime/storage attack (N = 2^{args.n_bits} = {N}, {args.challenges} challenges each)\n")
-    print(f"{'Prover':<26} {'Storage':>8} {'Passed':>8} {'Avg calls':>10} {'Expected':>9} {'Avg time':>10}")
+    print(f"{'Prover':<26} {'Storage':>8} {'S (entries)':>10} {'Passed':>7} {'Avg calls':>10} "
+          f"{'Expected':>9} {'Max calls':>10} {'T (worst)':>7} {'S+T':>8} {'Avg time':>10}")
     print("-" * 77)
     for r, p in zip(results, [1.0] + FRACTIONS):
         storage = f"{r['storage'] / honest_storage:.0%}"
         expected = (1 - p) ** 2 * N / 2
-        print(f"{r['prover']:<26} {storage:>8} {r['passed']:>8.1%} "
-              f"{r['calls']:>10.1f} {expected:>9.1f} {r['ms']:>7.2f} ms")
+        worst = N - r["entries"] # a miss scans every dropped input
+        print(f"{r['prover']:<26} {storage:>8} {r['entries']:>10} {r['passed']:>7.0%} "
+              f"{r['calls']:>10.1f} {expected:>9.1f} {r['max_calls']:>10} {worst:>7} "
+              f"{r['entries'] + worst:>8} {r['ms']:>7.2f} ms")
+        
     print("\nStorage is relative to the honest prover.")
     print("Avg calls = hash evaluations per challenge (setup excluded).")
     print("Expected = (1-p)^2 * N/2, with p the share of the table kept.")
+    print("Max calls = the most hash calls any single challenge needed in this run.")
+    print("T (worst) = N - S: the most a challenge can ever need (all dropped inputs scanned).")
+    print("S + T = N: a straight line.")
     print("Avg time = wall-clock time the prover needs to answer one challenge (depends on the machine).")
 
 

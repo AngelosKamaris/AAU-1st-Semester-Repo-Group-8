@@ -179,9 +179,17 @@ The experiment prints one row per prover: how much it stores and how many challe
 Diagram: [`Project/Diagramms/TimeStorageAttack`](../Diagramms/TimeStorageAttack.svg).*
 
 **What it does**
-- Same cheater as 4.1 (keeps a share p of the table), but on a miss it does not give up. It **brute-forces**: it computes $f(x)$ for the inputs it dropped until $f(x) = y$.
-- Stored inputs are skipped. For them $f(x)$ is already known (it is in the table) and it is not $y$, otherwise the lookup would have found it.
-- So it **always answers correctly**, uses less space than the honest prover, and pays with time: a hit costs 0 hash calls, a miss costs up to $(1-p) \cdot N$. On average that is $(1-p)^2 \cdot N / 2$ hash calls per challenge, so space and time trade off roughly linearly ($S \cdot T$ is about $N$).
+
+Same cheater as 4.1, as it stores only a fraction $p$ of the table. The difference is what happens on a miss.
+
+- **Hit:** the challenge answer is in the stored part of the table. Cost: 0 hash calls.
+- **Miss:** the answer is not stored. Instead of giving up, the prover **brute-forces**, recomputing $f(x)$ for the inputs it dropped, one by one, until $f(x) = y$ (stored inputs never need to be checked).
+
+Because every answer exists in the table, this prover **always answers correctly** while using less space than the honest one. It pays with time:
+
+- **Worst case:** $S = p \cdot N$ entries stored and $T = (1-p) \cdot N$ hash calls, so $\mathbf{S + T = N}$. Space and time trade off along a straight line.
+- **Average case:** a hit costs 0 and a miss costs about $(1-p) \cdot N / 2$, so a challenge costs $(1-p)^2 \cdot N / 2$ hash calls on average.
+
 
 **How to run it**
 ```bash
@@ -192,21 +200,30 @@ python -m experiments.time_storage --n-bits 14 --challenges 100                 
 Look at the "hash calls" and "ms" printed after each challenge: a hit costs 0,
 a miss costs thousands.
 
-**Historical results for the previous BLAKE2b setup** (N = 2^14, 100 challenges; time depends on the machine):
+**Historical results for the previous BLAKE2b setup** ($N = 2^{14} = 16384$, 100 challenges per prover, all provers pass 100% of challenges, times depend on the machine)
 
-| Stored | Challenges passed | Avg hash calls | Expected (1-p)²·N/2 | Avg time |
-|---|---|---|---|---|
-| 100% (honest) | 100% | 0 | 0 | 0.00 ms |
-| 90% | 100% | 72.6 | 81.9 | 0.08 ms |
-| 75% | 100% | 449.4 | 512.0 | 0.43 ms |
-| 50% | 100% | 2129.2 | 2048.0 | 1.93 ms |
-| 25% | 100% | 4818.3 | 4608.0 | 4.43 ms |
-| 10% | 100% | 7164.2 | 6635.5 | 6.10 ms |
-| 0% | 100% | 8831.3 | 8192.0 | 7.46 ms |
+| Stored | S (entries) | Avg calls | Expected avg | Max calls | T (worst) | S + T | Avg time |
+|---|---|---|---|---|---|---|---|
+| 100% (honest) | 16384 | 0.0 | 0.0 | 0 | 0 | 16384 | 0.00 ms |
+| 90% | 14746 | 72.6 | 81.9 | 1321 | 1638 | 16384 | 0.13 ms |
+| 75% | 12288 | 449.4 | 512.0 | 4061 | 4096 | 16384 | 0.67 ms |
+| 50% | 8192 | 2129.2 | 2048.0 | 8123 | 8192 | 16384 | 3.66 ms |
+| 25% | 4096 | 4818.3 | 4608.0 | 12274 | 12288 | 16384 | 8.06 ms |
+| 10% | 1638 | 7164.2 | 6635.5 | 14728 | 14746 | 16384 | 13.23 ms |
+| 0% | 0 | 8831.3 | 8192.0 | 16364 | 16384 | 16384 | 14.88 ms |
 
+How to read the columns:
+- **S** is the number of entries the prover stores: $p \cdot N$, where $N$ is the total number of inputs and $p$ is the fraction stored.
+- **Avg calls** is the measured mean number of hash calls over all challenges.
+- **Expected avg** is the theoretical mean, $(1-p)^2 \cdot N / 2$: a miss happens with probability $1-p$ and, on average, the answer is found halfway through the $(1-p) \cdot N$ dropped inputs. Measured values differ slightly because the run has only a finite number of random challenges.
+- **Max calls** is the most expensive single challenge seen in this run.
+- **T** is the theoretical worst case for one challenge: a miss whose answer is the last dropped input scans all of them, i.e. $N - S = (1-p) \cdot N$ hash calls.
+- **S + T = N** in every row: this is the straight-line trade-off. The average column cannot show it, because the average mixes hits and misses.
+
+Takeaways
 - Unlike the partial cheater, this one **never fails**: less storage just means more work.
-- Storing nothing is plain brute force: about N/2 hash calls per challenge.
-- Time follows the hash-call count (about 1 µs per call on the machine used here), which is why hash calls are the main measure and milliseconds are a sanity check.
+- Storing nothing is plain brute force: about $N/2$ hash calls per challenge.
+- Time follows the hash-call count, so hash calls are the main measure and milliseconds are a sanity check.
 
 ---
 
