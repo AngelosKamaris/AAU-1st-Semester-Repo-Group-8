@@ -17,6 +17,10 @@ the system, and defends it.
 | cloud | cloud node | backbone_net (1.1.1.4), mgmt_net (1.1.4.4) |
 | logger | log collector | mgmt_net (1.1.4.5) |
 
+`camera-spoof` (1.1.2.5, zone_a_net) is not part of the normal topology above, it
+only exists for the 5.4 experiment, added on demand by `run_spoof.sh` and removed
+again when it finishes.
+
 Networks:
 - `zone_a_net` (1.1.2.0/24) and `zone_b_net` (1.1.3.0/24) are **internal**: cameras can reach only their own fog node.
 - `backbone_net` (1.1.1.0/24): fog ↔ cloud processing traffic (mutual TLS).
@@ -76,6 +80,7 @@ Results are written to `evidence/`.
 | 1.5 WAN delay | `./measure_rtt.sh` | Prints the configured delay and measures fog↔cloud round-trip time (~400 ms). → `evidence/rtt.txt` |
 | 5.1 + 5.2 DoS & mitigation | `./run_dos.sh` | Three phases — normal, attack (camera-2 floods fog_a), attack with per-client rate limiting — recording camera-1 latency for each. → `evidence/dos_*.txt` |
 | 5.3 ID-switching flood | `./run_botnet.sh` | camera-2 floods fog_a while rotating valid camera IDs, with rate limiting on. Shows the limiter still blocks it (it keys on IP, not ID). → `evidence/botnet_idswitch_*.txt` |
+| 5.4 ID spoofing | `./run_spoof.sh` | Adds a new rogue container, `camera-spoof`, to zone_a_net, claiming to be "camera-1" with a guessed token. Shows whether the system detects it. → `evidence/spoof_*.txt` |
 | 5.5 MITM | `./run_mitm.sh` | An attacker takes over the cloud's address with an untrusted certificate; the fog nodes reject it. Restores the real cloud at the end. |
 
 Each DoS/botnet phase runs for 200 seconds by default. For a quicker test, set
@@ -93,12 +98,23 @@ and mitigation state is explicit and repeatable:
 
 Rate limiting is toggled through `fog_a`'s `RATE_LIMIT` environment variable.
 
+### How the spoofing script works
+ 
+`run_spoof.sh` uses `spoof_attack.override.yaml` to add one new service instead
+of reusing camera-1 or camera-2:
+ 
+- `spoof_attack.override.yaml` — adds `camera-spoof` (1.1.2.5), sending `CAMERA_ID: camera-1` with a guessed, non-matching token
+
+`fog_a` rejects it with 401 and logs it, the real `camera-1` is untouched throughout, and
+`camera-spoof` is removed again once the script finishes.
+
 ## Reading the results
 
     cat evidence/dos_normal_camera1.txt      # baseline latency
     cat evidence/dos_attack_camera1.txt      # under attack (much higher)
     cat evidence/dos_mitigated_camera1.txt   # attack with mitigation (back to normal)
     grep "rejected: rate limit" logs/system.jsonl | wc -l   # rejected requests
+    docker logs fog_a | grep "Rejected unauthenticated request from 1.1.2.5"   # spoofing attempts caught
 
 ## Assumptions and limitations
 
@@ -110,6 +126,10 @@ Rate limiting is toggled through `fog_a`'s `RATE_LIMIT` environment variable.
 - Rate limiting is keyed on the **client IP**, so an attacker that only changes its
   camera ID is still blocked, but several distinct hosts (a true botnet) would each
   get their own allowance.
+- `run_spoof.sh` only shows that a *stolen ID with the wrong token* is
+  rejected. It does not model an attacker who has also stolen the real token, because at
+  that point the system has no way to distinguish them from the legitimate
+  camera by the token alone.
 - `run_mitm.sh` requires the system to be running and restores the real cloud when
   it finishes.
 
