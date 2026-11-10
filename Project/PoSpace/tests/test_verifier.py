@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import random
 import subprocess
 import sys
 import unittest
 
 from pos import PoSParams, Verifier
-from pos.cli import challenges_arg, fraction, n_bits_arg, seed_arg
+from pos.cli import challenges_arg, fraction, n_bits_arg, positive_milliseconds, seed_arg
 from pos.params import MAX_N_BITS
 from pos.provers import PartialStorageProver, TimeStorageProver
 from pos.schemes import SimpleScheme
@@ -49,6 +50,52 @@ class TestAnswerSanitizing(unittest.TestCase):
         before = self.verifier.f.calls
         self.verifier.check(self.challenge_for(5), "5")
         self.assertEqual(self.verifier.f.calls - before, 1)   # only the challenge_for call
+
+
+class TestResponseDeadline(unittest.TestCase):
+    def setUp(self):
+        self.scheme = SimpleScheme(PoSParams(n_bits=8, seed=3))
+        self.verifier = Verifier(
+            self.scheme, rng_seed=1, max_response_time_ms=0.1
+        )
+        self.y = self.verifier.f(68)
+
+    def test_valid_answer_passes_at_or_before_deadline(self):
+        self.assertTrue(self.verifier.check(self.y, 68, response_time_ms=0.1))
+        self.assertTrue(self.verifier.check(self.y, 68, response_time_ms=0.099))
+
+    def test_late_answer_fails_without_hashing_it(self):
+        before = self.verifier.f.calls
+        self.assertFalse(self.verifier.check(self.y, 68, response_time_ms=0.1001))
+        self.assertEqual(self.verifier.f.calls, before)
+
+    def test_missing_or_invalid_elapsed_time_fails_closed(self):
+        for elapsed in (None, -0.1, float("nan"), float("inf"), True):
+            with self.subTest(elapsed=elapsed):
+                self.assertFalse(
+                    self.verifier.check(self.y, 68, response_time_ms=elapsed)
+                )
+
+    def test_deadline_must_be_finite_and_positive(self):
+        for deadline in (0, -1, float("nan"), float("inf"), True):
+            with self.subTest(deadline=deadline), self.assertRaises(ValueError):
+                Verifier(self.scheme, max_response_time_ms=deadline)
+
+
+class TestChallengeRandomness(unittest.TestCase):
+    def setUp(self):
+        self.scheme = SimpleScheme(PoSParams(n_bits=8, seed=3))
+
+    def test_unseeded_verifier_uses_system_randomness(self):
+        self.assertIsInstance(Verifier(self.scheme).rng, random.SystemRandom)
+
+    def test_explicit_seed_keeps_experiments_reproducible(self):
+        first = Verifier(self.scheme, rng_seed=1)
+        second = Verifier(self.scheme, rng_seed=1)
+        self.assertEqual(
+            [first.new_challenge() for _ in range(10)],
+            [second.new_challenge() for _ in range(10)],
+        )
 
 
 class TestParamsValidation(unittest.TestCase):
@@ -94,12 +141,14 @@ class TestCommandLineValidation(unittest.TestCase):
         self.assertEqual(seed_arg("0"), 0)
         self.assertEqual(challenges_arg("5"), 5)
         self.assertEqual(fraction("0.25"), 0.25)
+        self.assertEqual(positive_milliseconds("0.001"), 0.001)
 
     def test_validators_reject_bad_values(self):
         cases = [(n_bits_arg, ["0", "-1", str(MAX_N_BITS + 1), "40", "2.5", "abc"]),
                  (seed_arg, ["-1", str(2 ** 128), "1.5", "x"]),
                  (challenges_arg, ["0", "-2", "1.5", "x"]),
-                 (fraction, ["-0.1", "1.5", "nan", "inf", "abc"])]
+                 (fraction, ["-0.1", "1.5", "nan", "inf", "abc"]),
+                 (positive_milliseconds, ["0", "-0.1", "nan", "inf", "abc"])]
         for validator, values in cases:
             for bad in values:
                 with self.subTest(validator=validator.__name__, value=bad), \
@@ -107,12 +156,61 @@ class TestCommandLineValidation(unittest.TestCase):
                     validator(bad)
 
     def test_main_gives_usage_error_not_traceback(self):
-        for args in (["--challenges", "0"], ["--n-bits", "40"], ["--n-bits", "3"], ["--fraction", "2"]):
+        for args in (
+            ["--challenges", "0"],
+            ["--n-bits", "40"],
+            ["--n-bits", "3"],
+            ["--fraction", "2"],
+            ["--time-limit-ms", "0"],
+        ):
             with self.subTest(args=args):
                 run = subprocess.run([sys.executable, "main.py", *args], capture_output=True, text=True)
                 self.assertEqual(run.returncode, 2)
                 self.assertIn("error:", run.stderr)
                 self.assertNotIn("Traceback", run.stderr)
+
+    def test_main_rejects_proof_after_first_failed_required_challenge(self):
+        run = subprocess.run(
+            [
+                sys.executable,
+                "main.py",
+                "--n-bits",
+                "4",
+                "--challenges",
+                "3",
+                "--time-limit-ms",
+                "10",
+                "--prover",
+                "partial",
+                "--fraction",
+                "0",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(run.returncode, 1, run.stderr)
+        self.assertIn("Valid answers: 0/3", run.stdout)
+        self.assertIn("Proof rejected", run.stdout)
+        self.assertIn("Challenges attempted: 1/3", run.stdout)
+
+    def test_main_accepts_honest_proof_when_all_challenges_pass(self):
+        run = subprocess.run(
+            [
+                sys.executable,
+                "main.py",
+                "--n-bits",
+                "4",
+                "--challenges",
+                "3",
+                "--time-limit-ms",
+                "10",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("Valid answers: 3/3", run.stdout)
+        self.assertIn("Proof accepted", run.stdout)
 
 
 if __name__ == "__main__":

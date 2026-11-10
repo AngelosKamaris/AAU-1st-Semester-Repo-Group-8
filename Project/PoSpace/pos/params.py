@@ -13,7 +13,7 @@ class PoSParams:
     """Settings that define one plot.
 
     n_bits: size of the domain. The function maps [0, N) -> [0, N), with N = 2**n_bits.
-    seed:   BLAKE2b function seed or challenge/attack random seed.
+    seed:   BLAKE2b function seed or attack subset seed; not the verifier challenge seed.
     function: "feistel" or the original "blake2b".
     rounds: Feistel round count.
     master_key: optional 16-byte key for reproducible Feistel plots.

@@ -6,286 +6,34 @@ A step-by-step implementation of proofs of space. We start with the simplest sch
 |---|---|---|
 | 1. Basic scheme: prover stores a table, verifier sends challenges | Construction | ✅ Done |
 | 2. Partial storage attack (keep only part of the table) and time-storage attack (brute-force the rest) | Attack | ✅ Done |
-| 3. Repeated challenges (time limit still to do) | Defence | Repeated challenges supported |
+| 3. Repeated challenges and per-response time limit | Defence | Implemented in the demo runner |
 | 4. Hellman's time-memory trade-off | Attack | To do |
 | 5. Collision-based construction (g_f) | Construction | To do |
 | 6. Nested Hellman attack | Attack | To do |
 
 **Contents**
-1. [Setup](#1-setup)
-2. [Quick start](#2-quick-start)
-3. [The basic scheme](#3-the-basic-scheme)
-4. [Attacks](#4-attacks)
-   - [4.1 Partial storage](#41-partial-storage)
-   - [4.2 Time/storage](#42-timestorage)
-5. [Input validation](#5-input-validation)
-6. [Tests](#6-tests)
-7. [Files](#7-files)
-8. [Group workflow (mandatory)](#8-group-workflow-mandatory-so-we-dont-mess-up-anything-)
+1. [Group workflow (mandatory)](#1-group-workflow-mandatory-so-we-dont-mess-up-anything-)
+2. [Setup](#2-setup)
+3. [Quick start](#3-quick-start)
+4. [The basic scheme](#4-the-basic-scheme)
+5. [Attacks](#5-attacks)
+   - [5.1 Partial storage](#51-partial-storage)
+   - [5.2 Time/storage](#52-timestorage)
+6. [Input validation](#6-input-validation)
+7. [Tests](#7-tests)
+8. [Files](#8-files)
 9. [Extending the code](#9-extending-the-code)
 
 ---
 
-## 1. Setup
-
-You need:
-- **Python 3.9 or newer**: [python.org](https://www.python.org). On Windows, tick **"Add Python to PATH"** during install.
-- **Git**: [git-scm.com](https://git-scm.com).
-- **VS Code** (recommended) with the **Python** extension by Microsoft.
-
-No packages to install. The code only uses Python's standard library.
-
-**Get the repo (first time only):**
-```bash
-git clone https://github.com/AngelosKamaris/AAU-1st-Semester-Repo-Group-8
-```
-If the download keeps failing on a slow connection, use
-`git clone --depth 1 <url>` to download only the latest version.
-
----
-
-## 2. Quick start
-
-All commands in this README are run from **this folder** (`Project/PoSpace`). In VS Code, open a terminal with **Terminal → New Terminal**, then:
-
-```bash
-cd Project/PoSpace
-python main.py
-```
-If `python` isn't recognised, use `py` (Windows) or `python3` (Mac/Linux).
-
-**What a successful run looks like:**
-```
-Prover: honest
-Initialization (N = 2^16 = 65536, function = feistel)
-  table entries:     65,536
-  storage:           2,097,152 bits
-  setup evaluations: 65,536
-  setup time:        <elapsed> s
-
-Challenges
-  #1   y = <challenge>  answer x = <preimage>  accepted  (0 function calls, <time> ms)
-
-Valid answers: 1/1
-Proof accepted
-Average function calls per challenge: 0.0
-Average time per challenge:       0.00 ms
-```
-- **Initialization** is done once: the prover builds its table, and we print how big it is.
-- **Each challenge line** shows the challenge `y` (shortened), the prover's answer, whether the verifier accepted it, and the prover's work for that challenge.
-- Work is reported two ways: **function calls** (the same on every machine, our main measure) and **wall-clock time** (depends on your computer). The time covers only the prover answering, not the verifier checking.
-- `--challenges` is the number of independent challenges required in one proof; all answers must be valid.
-
-**Options** (combine them freely; `python main.py --help` lists them):
-```bash
-python main.py --n-bits 12 --challenges 20 --seed 42
-python main.py --prover timestorage --fraction 0.5
-python main.py --function blake2b --n-bits 16
-python main.py --function feistel --n-bits 16 --rounds 8 --master-key 00112233445566778899aabbccddeeff
-```
-
-| Option | Meaning | Allowed | Default |
-|---|---|---|---|
-| `--n-bits` | Table size, N = 2^n_bits | 1 to 24; even and at least 2 for Feistel | 16 (N = 65,536) |
-| `--function` | Function used for the plot | `feistel`, `blake2b` | `feistel` |
-| `--rounds` | Number of Feistel rounds | positive integer | 8 |
-| `--master-key` | Feistel key for repeatable plots | 32 hex characters | random key |
-| `--challenges` | Independent challenges required in one proof; all must pass | integer, at least 1 | 1 |
-| `--seed` | The plot's seed (its identity): a different seed gives a completely different table | integer, 0 to 2^128 - 1 | 1 |
-| `--prover` | Who answers: `honest`, or one of the attacks `partial`, `timestorage` (see [section 4](#4-attacks)) | one of the three | honest |
-| `--fraction` | For the attacks: share of the table the cheater keeps | number, 0 to 1 | 0.5 |
-
-A value outside the allowed range gives a short usage error, for example `main.py: error: argument --challenges: must be at least 1, got 0` (see [section 5](#5-input-validation)).
-
----
-
-## 3. The basic scheme
-
-**Initialization (done once by the prover)**
-- By default, `f` is an 8-round balanced Feistel permutation over `[0, N)`, with `N = 2^n_bits`.
-- The input is split into equal halves; keyed BLAKE2b rounds transform them and preserve a permutation.
-- A random 128-bit master key is generated for each plot. Pass `--master-key` to repeat a plot.
-- The original BLAKE2b function remains available with `--function blake2b`.
-- The prover computes `f(x)` for every input and stores a table `f(x) -> x`.
-
-**Proof of execution (repeated every round)**
-1. The verifier picks a random x and sends the challenge y = f(x).
-2. The prover looks up y in its table and sends back an x with f(x) = y.
-3. The verifier checks: the answer is a genuine integer (not a float, string, `None`, ...), x is in range, and f(x) equals y.
-
-**Notes**
-- **Every Feistel output appears exactly once**, so the plot has exactly N entries.
-- **Each Feistel entry stores y and x** (2 · n_bits bits).
-- **The inverse helper is kept separate from the forward function** and is used only for trusted tests; this models restricted oracle access, not a public one-way permutation.
-- **Every function object counts its evaluations** (`calls`), so we can measure how much work each prover does.
-
-**Look at the prover's table** (the first 20 rows):
-```bash
-python -c "from pos import PoSParams; from pos.schemes import SimpleScheme; from pos.provers import HonestProver; p = HonestProver(SimpleScheme(PoSParams(n_bits=8, seed=1))); p.setup(); [print(f'{y:x}', '->', x) for y, x in sorted(p.plot._entries.items())[:20]]"
-```
-Change `seed=1` or `n_bits=8` to look at other plots, remove `[:20]` to print everything, or swap `HonestProver(...)` for `PartialStorageProver(..., fraction=0.5, rng_seed=1)` to see a cheater's table.
-
-**What to point out:** the prover builds the table once and then answers every challenge with a lookup (0 function calls). Storage grows with N.
-
----
-
-## 4. Attacks
-
-An attack is a different **prover** facing the same verifier. The attacks below keep only a share p of the table, so they use less space than the honest prover. They differ in what happens when the answer is not in the part they kept:
-
-| Attack | `--prover` | On a miss | Challenges passed | Extra cost |
-|---|---|---|---|---|
-| [4.1 Partial storage](#41-partial-storage) | `partial` | gives up | about p | none |
-| [4.2 Time/storage](#42-timestorage) | `timestorage` | brute-forces | all | about (1-p)² · N / 2 hash calls per challenge |
-
-Suggested order for a demo: the basic scheme (section 3), then 4.1, 4.2 and section 5.
-
-### 4.1 Partial storage
-
-*Code: `pos/provers/partial_storage.py`, `experiments/partial_storage.py`, `tests/test_partial_storage.py`*
-
-**What it does**
-- The cheater builds the full table, keeps only part of it (e.g. 50%), and throws the rest away to save space.
-- If a challenge's answer is in the part it kept, it looks it up instantly.
-- Otherwise it has no answer, and fails that challenge.
-
-**How to run it**
-```bash
-python main.py --prover partial --fraction 0.5 --challenges 1      # one challenge: about 50% success
-python main.py --prover partial --fraction 0.5 --challenges 5      # all five must pass: about 3% success
-python main.py --prover partial --fraction 0 --challenges 1        # keeps nothing: proof fails
-python -m experiments.partial_storage                              # honest prover vs many cheaters, N = 4096
-python -m experiments.partial_storage --n-bits 14 --challenges 500 # bigger, more accurate
-```
-The experiment prints one row per prover: how much it stores and how many challenges it passes.
-
-**What it shows** (N = 2^12, one challenge per proof):
-
-| Stored | Challenges passed |
-|---|---|
-| 100% (honest) | 100% |
-| 75% | about 75% |
-| 50% | about 50% |
-| 25% | about 25% |
-| 0% | 0% |
-
-- A cheater passes about **as often as the share of the table it kept**, while using only that share of the space.
-- With **one challenge per proof**, a cheater keeping 50% fools the verifier half the time. So the basic scheme gives **no real guarantee**.
-- Increasing `--challenges` requires every challenge to pass, reducing partial-storage success to about p^c for c independent challenges.
-
-### 4.2 Time/storage
-
-*Code: `pos/provers/time_storage.py`, `experiments/time_storage.py`, `tests/test_time_storage.py`.
-Diagram: [`Project/Diagramms/TimeStorageAttack`](../Diagramms/TimeStorageAttack.svg).*
-
-**What it does**
-- Same cheater as 4.1 (keeps a share p of the table), but on a miss it does not give up. It **brute-forces**: it computes $f(x)$ for the inputs it dropped until $f(x) = y$.
-- Stored inputs are skipped. For them $f(x)$ is already known (it is in the table) and it is not $y$, otherwise the lookup would have found it.
-- So it **always answers correctly**, uses less space than the honest prover, and pays with time: a hit costs 0 hash calls, a miss costs up to $(1-p) \cdot N$. On average that is $(1-p)^2 \cdot N / 2$ hash calls per challenge, so space and time trade off roughly linearly ($S \cdot T$ is about $N$).
-
-**How to run it**
-```bash
-python main.py --prover timestorage --fraction 0.5 --n-bits 14 --challenges 10   # always accepted; misses cost hash calls and time
-python -m experiments.time_storage                                               # storage vs hash calls vs time
-python -m experiments.time_storage --n-bits 14 --challenges 100                  # bigger table: brute force takes longer
-```
-Look at the "hash calls" and "ms" printed after each challenge: a hit costs 0,
-a miss costs thousands.
-
-**Historical results for the previous BLAKE2b setup** (N = 2^14, 100 challenges; time depends on the machine):
-
-| Stored | Challenges passed | Avg hash calls | Expected (1-p)²·N/2 | Avg time |
-|---|---|---|---|---|
-| 100% (honest) | 100% | 0 | 0 | 0.00 ms |
-| 90% | 100% | 72.6 | 81.9 | 0.08 ms |
-| 75% | 100% | 449.4 | 512.0 | 0.43 ms |
-| 50% | 100% | 2129.2 | 2048.0 | 1.93 ms |
-| 25% | 100% | 4818.3 | 4608.0 | 4.43 ms |
-| 10% | 100% | 7164.2 | 6635.5 | 6.10 ms |
-| 0% | 100% | 8831.3 | 8192.0 | 7.46 ms |
-
-- Unlike the partial cheater, this one **never fails**: less storage just means more work.
-- Storing nothing is plain brute force: about N/2 hash calls per challenge.
-- Time follows the hash-call count (about 1 µs per call on the machine used here), which is why hash calls are the main measure and milliseconds are a sanity check.
-
----
-
-## 5. Input validation
-
-The prover is untrusted, and users make typos, so inputs are checked where they enter:
-
-| Where | What is checked | Where in the code |
-|---|---|---|
-| The prover's answer | must be a real `int` (not `float`, `str`, `list`, `None`, not even `True`) in [0, N). Anything else is rejected, never converted. The verifier does not crash and spends no hash calls on it. | `Scheme.is_domain_element()` in `pos/schemes/base.py`, used by `SimpleScheme.is_valid()` |
-| Plot parameters | `n_bits` is an `int` from 1 to `MAX_N_BITS` (24); Feistel additionally requires an even width of at least 2 | `PoSParams` in `pos/params.py` |
-| Feistel settings | Positive round count and optional 16-byte master key | `PoSParams` in `pos/params.py` |
-| Cheater settings | `fraction` is a number from 0 to 1 (rejects `nan`, `True`, strings, `None`), checked when the prover is created | `PartialStorageProver` (also used by `TimeStorageProver`) |
-| Command line | `--n-bits`, `--seed`, `--challenges`, `--fraction` give a clear usage error instead of a traceback | `pos/cli.py`, used by `main.py` and `experiments/time_storage.py` |
-
-**See it in action:**
-```bash
-python main.py --challenges 0                    # usage error, not a crash
-python main.py --n-bits 40                       # too big: refused before building a huge table
-python main.py --n-bits 3                        # Feistel requires an even width
-python main.py --prover partial --fraction 2     # fraction must be between 0 and 1
-```
-- To allow bigger tables, raise `MAX_N_BITS` in `pos/params.py` (you need the memory for N entries).
-- Not covered here (later steps): a **time limit** for the prover and **replayed
-  challenges** (step 3, "Repeated challenges + time limit").
-
----
-
-## 6. Tests
-
-```bash
-python -m unittest discover tests     # all tests: should end with OK
-python -m unittest tests.test_verifier   # just one file
-```
-Run the full set before every commit/push.
-
-| File | What it checks |
-|---|---|
-| `test_basic.py` | The hash function, and the protocol with the honest prover |
-| `test_feistel.py` | Feistel permutation, determinism, exhaustive uniqueness, and trusted inverse |
-| `test_partial_storage.py` | The partial storage attack |
-| `test_time_storage.py` | The time/storage attack |
-| `test_verifier.py` | Input sanitizing: prover answers, parameters, command line |
-
----
-
-## 7. Files
-
-```
-pos/
-  params.py         PoSParams: n_bits (N = 2^n_bits) and the plot seed, with range/type checks
-  cli.py            Validators for command-line arguments (--n-bits, --seed, --challenges, --fraction)
-  functions.py      HashFunction: original BLAKE2b comparison function
-  feistel.py        FeistelPermutation: forward-only permutation and trusted inverse helper
-  plot.py           Plot: the stored table (f(x) -> x), reports its size in bits
-  schemes/
-    base.py         Scheme interface: build plot, pick challenge, check answer; is_domain_element() sanitizes answers
-    simple.py       Selects Feistel or BLAKE2b and builds the plot
-  provers/
-    base.py         Prover interface: setup(), answer(y), storage_bits()
-    honest.py       Honest prover: full table, answers by lookup
-    partial_storage.py  Attack 4.1: keeps only part of the table
-    time_storage.py     Attack 4.2: keeps part of the table, brute-forces what is missing
-  verifier.py       Verifier: new_challenge(), check(y, answer)
-experiments/
-  partial_storage.py    Compares the honest prover with many cheaters
-  time_storage.py       Time/storage attack: storage vs hash calls vs time
-main.py             Demo: initialization + challenges (choose the prover), reports hash calls and time
-tests/              unittest tests
-```
-
----
-
-## 8. Group workflow (mandatory so we don't mess up anything :)
+## 1. Group workflow (mandatory so we don't mess up anything :)
 
 > **Rule: never commit directly to `main`.**
 > Every change goes on its own branch and reaches `main` through a pull request that at least one other group member has looked at.
 
 This keeps `main` working at all times, lets the group see every change before it lands, and stops people overwriting each other's work.
+
+First time here? Do the [Setup](#2-setup) first, then come back.
 
 These commands are run from the **repo's top folder** (`AAU-1st-Semester-Repo-Group-8`), not from `Project/PoSpace`.
 
@@ -397,18 +145,302 @@ Not sure how to resolve a conflict? Ask in the group chat before guessing.
 
 ---
 
+## 2. Setup
+
+You need:
+- **Python 3.9 or newer**: [python.org](https://www.python.org). On Windows, tick **"Add Python to PATH"** during install.
+- **Git**: [git-scm.com](https://git-scm.com).
+- **VS Code** (recommended) with the **Python** extension by Microsoft.
+
+No packages to install. The code only uses Python's standard library.
+
+**Get the repo (first time only):**
+```bash
+git clone https://github.com/AngelosKamaris/AAU-1st-Semester-Repo-Group-8
+```
+If the download keeps failing on a slow connection, use
+`git clone --depth 1 <url>` to download only the latest version.
+
+---
+
+## 3. Quick start
+
+All commands in this README are run from **this folder** (`Project/PoSpace`). In VS Code, open a terminal with **Terminal → New Terminal**, then:
+
+```bash
+cd Project/PoSpace
+python main.py
+```
+If `python` isn't recognised, use `py` (Windows) or `python3` (Mac/Linux).
+
+**What a successful run looks like:**
+```
+Prover: honest
+Initialization (N = 2^16 = 65536, function = feistel)
+  table entries:     65,536
+  storage:           2,097,152 bits
+  setup evaluations: 65,536
+  setup time:        <elapsed> s
+
+Challenges
+  #1   y = <challenge>  answer x = <preimage>  accepted  (0 function calls, <time> ms)
+
+Valid answers: 1/1
+Proof accepted
+Average function calls per challenge: 0.0
+Average time per challenge:       0.00 ms
+```
+- **Initialization** is done once: the prover builds its table, and we print how big it is.
+- **Each challenge line** shows the challenge `y` (shortened), the prover's answer, whether the verifier accepted it, and the prover's work for that challenge.
+- Work is reported two ways: **function calls** (the same on every machine, our main measure) and **wall-clock time** (depends on your computer). The time covers only the prover answering, not the verifier checking.
+- `--challenges` is the number of independent challenges required in one proof; every answer must be correct and within the time limit. One failed or late answer rejects the entire proof.
+- The command-line verifier draws challenges from system randomness; `--seed` does not reveal or repeat their sequence.
+- The runner exits with status 1 when the proof is rejected and status 0 when all required challenges pass.
+- The default is 50 challenges with a 0.1 ms per-response limit. The limit is checked after the prover returns: a late response is rejected, but its computation is not interrupted. Both settings can be adjusted for experiments and hardware differences.
+- On the development machine, 5,000 honest Feistel lookups took at most 0.0029 ms each; measured time-storage misses at `N = 2^16` took a median 25.5 ms with 90% stored and 3.1 ms with 99% stored. These measurements motivated the 0.1 ms starting limit, but timings vary by machine and load.
+
+**Options** (combine them freely; `python main.py --help` lists them):
+```bash
+python main.py --n-bits 12 --challenges 20 --seed 42
+python main.py --n-bits 16 --challenges 50 --time-limit-ms 0.1
+python main.py --prover timestorage --fraction 0.5
+python main.py --function blake2b --n-bits 16
+python main.py --function feistel --n-bits 16 --rounds 8 --master-key 00112233445566778899aabbccddeeff
+```
+
+| Option | Meaning | Allowed | Default |
+|---|---|---|---|
+| `--n-bits` | Table size, N = 2^n_bits | 1 to 24; even and at least 2 for Feistel | 16 (N = 65,536) |
+| `--function` | Function used for the plot | `feistel`, `blake2b` | `feistel` |
+| `--rounds` | Number of Feistel rounds | positive integer | 8 |
+| `--master-key` | Feistel key for repeatable plots | 32 hex characters | random key |
+| `--challenges` | Independent challenges required in one proof; all must pass | integer, at least 1 | 50 |
+| `--time-limit-ms` | Maximum time allowed for each prover response; late answers fail | finite number, greater than 0 | 0.1 |
+| `--seed` | BLAKE2b plot seed and attack-subset seed; does not seed verifier challenges (Feistel uses `--master-key`) | integer, 0 to 2^128 - 1 | 1 |
+| `--prover` | Who answers: `honest`, or one of the attacks `partial`, `timestorage` (see [section 5](#5-attacks)) | one of the three | honest |
+| `--fraction` | For the attacks: share of the table the cheater keeps | number, 0 to 1 | 0.5 |
+
+A value outside the allowed range gives a short usage error, for example `main.py: error: argument --challenges: must be at least 1, got 0` (see [section 6](#6-input-validation)).
+
+---
+
+## 4. The basic scheme
+
+**Initialization (done once by the prover)**
+- By default, `f` is an 8-round balanced Feistel permutation over `[0, N)`, with `N = 2^n_bits`.
+- The input is split into equal halves; keyed BLAKE2b rounds transform them and preserve a permutation.
+- A random 128-bit master key is generated for each plot. Pass `--master-key` to repeat a plot.
+- The original BLAKE2b function remains available with `--function blake2b`.
+- The prover computes `f(x)` for every input and stores a table `f(x) -> x`.
+
+**Proof of execution (repeated every round)**
+1. The verifier picks a random x and sends the challenge y = f(x).
+2. The prover looks up y in its table and sends back an x with f(x) = y.
+3. The verifier checks that the response arrived within the per-challenge deadline, is a genuine integer (not a float, string, `None`, ...), is in range, and satisfies f(x) = y.
+4. The proof is accepted only if all required challenges pass. The demo stops at the first incorrect or late answer.
+
+**Notes**
+- **Every Feistel output appears exactly once**, so the plot has exactly N entries.
+- **Each Feistel entry stores y and x** (2 · n_bits bits).
+- **The inverse helper is kept separate from the forward function** and is used only for trusted tests; this models restricted oracle access, not a public one-way permutation.
+- **Every function object counts its evaluations** (`calls`), so we can measure how much work each prover does.
+
+**Look at the prover's table** (the first 20 rows):
+```bash
+python -c "from pos import PoSParams; from pos.schemes import SimpleScheme; from pos.provers import HonestProver; p = HonestProver(SimpleScheme(PoSParams(n_bits=8, seed=1))); p.setup(); [print(f'{y:x}', '->', x) for y, x in sorted(p.plot._entries.items())[:20]]"
+```
+Change `seed=1` or `n_bits=8` to look at other plots, remove `[:20]` to print everything, or swap `HonestProver(...)` for `PartialStorageProver(..., fraction=0.5, rng_seed=1)` to see a cheater's table.
+
+**What to point out:** the prover builds the table once and then answers every challenge with a lookup (0 function calls). Storage grows with N.
+
+---
+
+## 5. Attacks
+
+An attack is a different **prover** facing the same verifier. The attacks below keep only a share p of the table, so they use less space than the honest prover. They differ in what happens when the answer is not in the part they kept:
+
+| Attack | `--prover` | On a miss | Challenges passed | Extra cost |
+|---|---|---|---|---|
+| [5.1 Partial storage](#51-partial-storage) | `partial` | gives up | about p | none |
+| [5.2 Time/storage](#52-timestorage) | `timestorage` | brute-forces | all | about (1-p)² · N / 2 hash calls per challenge |
+
+Suggested order for a demo: the basic scheme (section 4), then 5.1, 5.2 and section 6.
+
+### 5.1 Partial storage
+
+*Code: `pos/provers/partial_storage.py`, `experiments/partial_storage.py`, `tests/test_partial_storage.py`*
+
+**What it does**
+- The cheater builds the full table, keeps only part of it (e.g. 50%), and throws the rest away to save space.
+- If a challenge's answer is in the part it kept, it looks it up instantly.
+- Otherwise it has no answer, and fails that challenge.
+
+**How to run it**
+```bash
+python main.py --prover partial --fraction 0.5 --challenges 1      # one challenge: about 50% success
+python main.py --prover partial --fraction 0.5 --challenges 5      # all five must pass: about 3% success
+python main.py --prover partial --fraction 0 --challenges 1        # keeps nothing: proof fails
+python -m experiments.partial_storage                              # honest prover vs many cheaters, N = 4096
+python -m experiments.partial_storage --n-bits 14 --challenges 500 # bigger, more accurate
+```
+The experiment prints one row per prover: how much it stores and how many challenges it passes.
+
+**What it shows** (N = 2^12, one challenge per proof):
+
+| Stored | Challenges passed |
+|---|---|
+| 100% (honest) | 100% |
+| 75% | about 75% |
+| 50% | about 50% |
+| 25% | about 25% |
+| 0% | 0% |
+
+- A cheater passes about **as often as the share of the table it kept**, while using only that share of the space.
+- With **one challenge per proof**, a cheater keeping 50% fools the verifier half the time. So the basic scheme gives **no real guarantee**.
+- Increasing `--challenges` requires every challenge to pass, reducing partial-storage success to about p^c for c independent challenges.
+- With the default 50 challenges, the idealized all-hit probability is `p^50`: about 0.52% when 90% of the table is stored, 7.7% at 95%, and 60.5% at 99%. The latter illustrates that repetition does not eliminate the advantage of storing almost everything.
+
+### 5.2 Time/storage
+
+*Code: `pos/provers/time_storage.py`, `experiments/time_storage.py`, `tests/test_time_storage.py`.
+Diagram: [`Project/Diagramms/TimeStorageAttack`](../Diagramms/TimeStorageAttack.svg).*
+
+**What it does**
+
+Same cheater as 4.1, as it stores only a fraction $p$ of the table. The difference is what happens on a miss.
+
+- **Hit:** the challenge answer is in the stored part of the table. Cost: 0 hash calls.
+- **Miss:** the answer is not stored. Instead of giving up, the prover **brute-forces**, recomputing $f(x)$ for the inputs it dropped, one by one, until $f(x) = y$ (stored inputs never need to be checked).
+
+Without a deadline, this prover eventually finds a valid answer while using less space than the honest one. The demo runner now rejects an answer that takes longer than `--time-limit-ms`; the deadline is checked after the answer returns and does not interrupt the search. It pays with time:
+
+- **Worst case:** $S = p \cdot N$ entries stored and $T = (1-p) \cdot N$ hash calls, so $\mathbf{S + T = N}$. Space and time trade off along a straight line.
+- **Average case:** a hit costs 0 and a miss costs about $(1-p) \cdot N / 2$, so a challenge costs $(1-p)^2 \cdot N / 2$ hash calls on average.
+
+
+**How to run it**
+```bash
+python main.py --prover timestorage --fraction 0.5 --n-bits 14 --challenges 50 # misses may exceed the response deadline
+python -m experiments.time_storage                                               # storage vs hash calls vs time
+python -m experiments.time_storage --n-bits 14 --challenges 100                  # bigger table: brute force takes longer
+```
+Look at the "hash calls" and "ms" printed after each challenge: a hit costs 0,
+a miss costs thousands. The experiment script measures the attack without a
+deadline; `main.py` applies the configured response deadline and requires all
+challenges to pass.
+
+**Historical results for the previous BLAKE2b setup** ($N = 2^{14} = 16384$, 100 challenges per prover, all provers pass 100% of challenges, times depend on the machine)
+
+| Stored | S (entries) | Avg calls | Expected avg | Max calls | T (worst) | S + T | Avg time |
+|---|---|---|---|---|---|---|---|
+| 100% (honest) | 16384 | 0.0 | 0.0 | 0 | 0 | 16384 | 0.00 ms |
+| 90% | 14746 | 72.6 | 81.9 | 1321 | 1638 | 16384 | 0.13 ms |
+| 75% | 12288 | 449.4 | 512.0 | 4061 | 4096 | 16384 | 0.67 ms |
+| 50% | 8192 | 2129.2 | 2048.0 | 8123 | 8192 | 16384 | 3.66 ms |
+| 25% | 4096 | 4818.3 | 4608.0 | 12274 | 12288 | 16384 | 8.06 ms |
+| 10% | 1638 | 7164.2 | 6635.5 | 14728 | 14746 | 16384 | 13.23 ms |
+| 0% | 0 | 8831.3 | 8192.0 | 16364 | 16384 | 16384 | 14.88 ms |
+
+How to read the columns:
+- **S** is the number of entries the prover stores: $p \cdot N$, where $N$ is the total number of inputs and $p$ is the fraction stored.
+- **Avg calls** is the measured mean number of hash calls over all challenges.
+- **Expected avg** is the theoretical mean, $(1-p)^2 \cdot N / 2$: a miss happens with probability $1-p$ and, on average, the answer is found halfway through the $(1-p) \cdot N$ dropped inputs. Measured values differ slightly because the run has only a finite number of random challenges.
+- **Max calls** is the most expensive single challenge seen in this run.
+- **T** is the theoretical worst case for one challenge: a miss whose answer is the last dropped input scans all of them, i.e. $N - S = (1-p) \cdot N$ hash calls.
+- **S + T = N** in every row: this is the straight-line trade-off. The average column cannot show it, because the average mixes hits and misses.
+
+Takeaways
+- Unlike the partial cheater, this one **never fails**: less storage just means more work.
+- Storing nothing is plain brute force: about $N/2$ hash calls per challenge.
+- Time follows the hash-call count, so hash calls are the main measure and milliseconds are a sanity check.
+
+---
+
+## 6. Input validation
+
+The prover is untrusted, and users make typos, so inputs are checked where they enter:
+
+| Where | What is checked | Where in the code |
+|---|---|---|
+| The prover's answer | must be a real `int` (not `float`, `str`, `list`, `None`, not even `True`) in [0, N). Anything else is rejected, never converted. The verifier does not crash and spends no hash calls on it. | `Scheme.is_domain_element()` in `pos/schemes/base.py`, used by `SimpleScheme.is_valid()` |
+| Plot parameters | `n_bits` is an `int` from 1 to `MAX_N_BITS` (24); Feistel additionally requires an even width of at least 2 | `PoSParams` in `pos/params.py` |
+| Feistel settings | Positive round count and optional 16-byte master key | `PoSParams` in `pos/params.py` |
+| Cheater settings | `fraction` is a number from 0 to 1 (rejects `nan`, `True`, strings, `None`), checked when the prover is created | `PartialStorageProver` (also used by `TimeStorageProver`) |
+| Command line | `--n-bits`, `--seed`, `--challenges`, `--fraction`, and `--time-limit-ms` give a clear usage error instead of a traceback | `pos/cli.py`, used by `main.py` |
+
+**See it in action:**
+```bash
+python main.py --challenges 0                    # usage error, not a crash
+python main.py --n-bits 40                       # too big: refused before building a huge table
+python main.py --n-bits 3                        # Feistel requires an even width
+python main.py --prover partial --fraction 2     # fraction must be between 0 and 1
+```
+- To allow bigger tables, raise `MAX_N_BITS` in `pos/params.py` (you need the memory for N entries).
+- The demo's response deadline is a local wall-clock check after the prover
+  returns. It rejects slow answers but does not stop their CPU use, and its
+  suitable value depends on the machine. Replayed-challenge defenses are not
+  implemented.
+
+---
+
+## 7. Tests
+
+```bash
+python -m unittest discover tests     # all tests: should end with OK
+python -m unittest tests.test_verifier   # just one file
+```
+Run the full set before every commit/push.
+
+| File | What it checks |
+|---|---|
+| `test_basic.py` | The hash function, and the protocol with the honest prover |
+| `test_feistel.py` | Feistel permutation, determinism, exhaustive uniqueness, and trusted inverse |
+| `test_partial_storage.py` | The partial storage attack |
+| `test_time_storage.py` | The time/storage attack |
+| `test_verifier.py` | Input sanitizing, response deadline, parameters, and command line |
+
+---
+
+## 8. Files
+
+```
+pos/
+  params.py         PoSParams: n_bits (N = 2^n_bits) and the plot seed, with range/type checks
+  cli.py            Validators for command-line arguments, including response time
+  functions.py      HashFunction: original BLAKE2b comparison function
+  feistel.py        FeistelPermutation: forward-only permutation and trusted inverse helper
+  plot.py           Plot: the stored table (f(x) -> x), reports its size in bits
+  schemes/
+    base.py         Scheme interface: build plot, pick challenge, check answer; is_domain_element() sanitizes answers
+    simple.py       Selects Feistel or BLAKE2b and builds the plot
+  provers/
+    base.py         Prover interface: setup(), answer(y), storage_bits()
+    honest.py       Honest prover: full table, answers by lookup
+    partial_storage.py  Attack 4.1: keeps only part of the table
+    time_storage.py     Attack 4.2: keeps part of the table, brute-forces what is missing
+  verifier.py       Verifier: new_challenge(), check(y, answer, response_time_ms)
+experiments/
+  partial_storage.py    Compares the honest prover with many cheaters
+  time_storage.py       Time/storage attack: storage vs hash calls vs time
+main.py             Demo: initialization + challenges (choose the prover), reports hash calls and time
+tests/              unittest tests
+```
+
+---
+
 ## 9. Extending the code
 
 - **An attack** is a new `Prover` subclass in `pos/provers/`. Export it in
   `pos/provers/__init__.py`, add it to `--prover` in `main.py`, and give it its
-  own subsection in section 4 (idea, how to run, results, code files).
+  own subsection in section 5 (idea, how to run, results, code files).
 - **A new construction** (e.g. the collision-based g_f) is a new `Scheme`
   subclass in `pos/schemes/`, implementing `build_plot`, `sample_challenge`
   and `is_valid`.
-- **Security measures** (repeated challenges, time limits) go in `verifier.py`.
+- **Security checks** (required repeated challenges and response deadlines) are enforced by `main.py` and `verifier.py`.
+- The demo runner measures each response and passes its elapsed time to the verifier. Its post-return deadline rejects slow answers but cannot interrupt a prover that is still computing; it is a demonstration policy, not process-level isolation.
 - **Never trust the prover's answer.** In a new scheme's `is_valid`, check every
   part of the answer with `self.is_domain_element(...)` before evaluating f on it
   (the collision-based scheme has two parts, x and x').
 - **New command-line options** should use the validators in `pos/cli.py`
   (`int_in_range`, `fraction`) so bad values give a usage error.
-- **Add a test** in `tests/` for anything new, so the group knows it works.
+- **Add a test** in `tests/` for anything new, so the group knows it works.
