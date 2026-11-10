@@ -6,7 +6,7 @@ A step-by-step implementation of proofs of space. We start with the simplest sch
 |---|---|---|
 | 1. Basic scheme: prover stores a table, verifier sends challenges | Construction | ✅ Done |
 | 2. Partial storage attack (keep only part of the table) and time-storage attack (brute-force the rest) | Attack | ✅ Done |
-| 3. Repeated challenges (time limit still to do) | Defence | Repeated challenges supported |
+| 3. Repeated challenges and per-response time limit | Defence | Implemented in the demo runner |
 | 4. Hellman's time-memory trade-off | Attack | To do |
 | 5. Collision-based construction (g_f) | Construction | To do |
 | 6. Nested Hellman attack | Attack | To do |
@@ -193,11 +193,16 @@ Average time per challenge:       0.00 ms
 - **Initialization** is done once: the prover builds its table, and we print how big it is.
 - **Each challenge line** shows the challenge `y` (shortened), the prover's answer, whether the verifier accepted it, and the prover's work for that challenge.
 - Work is reported two ways: **function calls** (the same on every machine, our main measure) and **wall-clock time** (depends on your computer). The time covers only the prover answering, not the verifier checking.
-- `--challenges` is the number of independent challenges required in one proof; all answers must be valid.
+- `--challenges` is the number of independent challenges required in one proof; every answer must be correct and within the time limit. One failed or late answer rejects the entire proof.
+- The command-line verifier draws challenges from system randomness; `--seed` does not reveal or repeat their sequence.
+- The runner exits with status 1 when the proof is rejected and status 0 when all required challenges pass.
+- The default is 50 challenges with a 0.1 ms per-response limit. The limit is checked after the prover returns: a late response is rejected, but its computation is not interrupted. Both settings can be adjusted for experiments and hardware differences.
+- On the development machine, 5,000 honest Feistel lookups took at most 0.0029 ms each; measured time-storage misses at `N = 2^16` took a median 25.5 ms with 90% stored and 3.1 ms with 99% stored. These measurements motivated the 0.1 ms starting limit, but timings vary by machine and load.
 
 **Options** (combine them freely; `python main.py --help` lists them):
 ```bash
 python main.py --n-bits 12 --challenges 20 --seed 42
+python main.py --n-bits 16 --challenges 50 --time-limit-ms 0.1
 python main.py --prover timestorage --fraction 0.5
 python main.py --function blake2b --n-bits 16
 python main.py --function feistel --n-bits 16 --rounds 8 --master-key 00112233445566778899aabbccddeeff
@@ -209,8 +214,9 @@ python main.py --function feistel --n-bits 16 --rounds 8 --master-key 0011223344
 | `--function` | Function used for the plot | `feistel`, `blake2b` | `feistel` |
 | `--rounds` | Number of Feistel rounds | positive integer | 8 |
 | `--master-key` | Feistel key for repeatable plots | 32 hex characters | random key |
-| `--challenges` | Independent challenges required in one proof; all must pass | integer, at least 1 | 1 |
-| `--seed` | The plot's seed (its identity): a different seed gives a completely different table | integer, 0 to 2^128 - 1 | 1 |
+| `--challenges` | Independent challenges required in one proof; all must pass | integer, at least 1 | 50 |
+| `--time-limit-ms` | Maximum time allowed for each prover response; late answers fail | finite number, greater than 0 | 0.1 |
+| `--seed` | BLAKE2b plot seed and attack-subset seed; does not seed verifier challenges (Feistel uses `--master-key`) | integer, 0 to 2^128 - 1 | 1 |
 | `--prover` | Who answers: `honest`, or one of the attacks `partial`, `timestorage` (see [section 5](#5-attacks)) | one of the three | honest |
 | `--fraction` | For the attacks: share of the table the cheater keeps | number, 0 to 1 | 0.5 |
 
@@ -230,7 +236,8 @@ A value outside the allowed range gives a short usage error, for example `main.p
 **Proof of execution (repeated every round)**
 1. The verifier picks a random x and sends the challenge y = f(x).
 2. The prover looks up y in its table and sends back an x with f(x) = y.
-3. The verifier checks: the answer is a genuine integer (not a float, string, `None`, ...), x is in range, and f(x) equals y.
+3. The verifier checks that the response arrived within the per-challenge deadline, is a genuine integer (not a float, string, `None`, ...), is in range, and satisfies f(x) = y.
+4. The proof is accepted only if all required challenges pass. The demo stops at the first incorrect or late answer.
 
 **Notes**
 - **Every Feistel output appears exactly once**, so the plot has exactly N entries.
@@ -291,6 +298,7 @@ The experiment prints one row per prover: how much it stores and how many challe
 - A cheater passes about **as often as the share of the table it kept**, while using only that share of the space.
 - With **one challenge per proof**, a cheater keeping 50% fools the verifier half the time. So the basic scheme gives **no real guarantee**.
 - Increasing `--challenges` requires every challenge to pass, reducing partial-storage success to about p^c for c independent challenges.
+- With the default 50 challenges, the idealized all-hit probability is `p^50`: about 0.52% when 90% of the table is stored, 7.7% at 95%, and 60.5% at 99%. The latter illustrates that repetition does not eliminate the advantage of storing almost everything.
 
 ### 5.2 Time/storage
 
@@ -304,7 +312,7 @@ Same cheater as 4.1, as it stores only a fraction $p$ of the table. The differen
 - **Hit:** the challenge answer is in the stored part of the table. Cost: 0 hash calls.
 - **Miss:** the answer is not stored. Instead of giving up, the prover **brute-forces**, recomputing $f(x)$ for the inputs it dropped, one by one, until $f(x) = y$ (stored inputs never need to be checked).
 
-Because every answer exists in the table, this prover **always answers correctly** while using less space than the honest one. It pays with time:
+Without a deadline, this prover eventually finds a valid answer while using less space than the honest one. The demo runner now rejects an answer that takes longer than `--time-limit-ms`; the deadline is checked after the answer returns and does not interrupt the search. It pays with time:
 
 - **Worst case:** $S = p \cdot N$ entries stored and $T = (1-p) \cdot N$ hash calls, so $\mathbf{S + T = N}$. Space and time trade off along a straight line.
 - **Average case:** a hit costs 0 and a miss costs about $(1-p) \cdot N / 2$, so a challenge costs $(1-p)^2 \cdot N / 2$ hash calls on average.
@@ -312,12 +320,14 @@ Because every answer exists in the table, this prover **always answers correctly
 
 **How to run it**
 ```bash
-python main.py --prover timestorage --fraction 0.5 --n-bits 14 --challenges 10   # always accepted; misses cost hash calls and time
+python main.py --prover timestorage --fraction 0.5 --n-bits 14 --challenges 50 # misses may exceed the response deadline
 python -m experiments.time_storage                                               # storage vs hash calls vs time
 python -m experiments.time_storage --n-bits 14 --challenges 100                  # bigger table: brute force takes longer
 ```
 Look at the "hash calls" and "ms" printed after each challenge: a hit costs 0,
-a miss costs thousands.
+a miss costs thousands. The experiment script measures the attack without a
+deadline; `main.py` applies the configured response deadline and requires all
+challenges to pass.
 
 **Historical results for the previous BLAKE2b setup** ($N = 2^{14} = 16384$, 100 challenges per prover, all provers pass 100% of challenges, times depend on the machine)
 
@@ -356,7 +366,7 @@ The prover is untrusted, and users make typos, so inputs are checked where they 
 | Plot parameters | `n_bits` is an `int` from 1 to `MAX_N_BITS` (24); Feistel additionally requires an even width of at least 2 | `PoSParams` in `pos/params.py` |
 | Feistel settings | Positive round count and optional 16-byte master key | `PoSParams` in `pos/params.py` |
 | Cheater settings | `fraction` is a number from 0 to 1 (rejects `nan`, `True`, strings, `None`), checked when the prover is created | `PartialStorageProver` (also used by `TimeStorageProver`) |
-| Command line | `--n-bits`, `--seed`, `--challenges`, `--fraction` give a clear usage error instead of a traceback | `pos/cli.py`, used by `main.py` and `experiments/time_storage.py` |
+| Command line | `--n-bits`, `--seed`, `--challenges`, `--fraction`, and `--time-limit-ms` give a clear usage error instead of a traceback | `pos/cli.py`, used by `main.py` |
 
 **See it in action:**
 ```bash
@@ -366,8 +376,10 @@ python main.py --n-bits 3                        # Feistel requires an even widt
 python main.py --prover partial --fraction 2     # fraction must be between 0 and 1
 ```
 - To allow bigger tables, raise `MAX_N_BITS` in `pos/params.py` (you need the memory for N entries).
-- Not covered here (later steps): a **time limit** for the prover and **replayed
-  challenges** (step 3, "Repeated challenges + time limit").
+- The demo's response deadline is a local wall-clock check after the prover
+  returns. It rejects slow answers but does not stop their CPU use, and its
+  suitable value depends on the machine. Replayed-challenge defenses are not
+  implemented.
 
 ---
 
@@ -385,7 +397,7 @@ Run the full set before every commit/push.
 | `test_feistel.py` | Feistel permutation, determinism, exhaustive uniqueness, and trusted inverse |
 | `test_partial_storage.py` | The partial storage attack |
 | `test_time_storage.py` | The time/storage attack |
-| `test_verifier.py` | Input sanitizing: prover answers, parameters, command line |
+| `test_verifier.py` | Input sanitizing, response deadline, parameters, and command line |
 
 ---
 
@@ -394,7 +406,7 @@ Run the full set before every commit/push.
 ```
 pos/
   params.py         PoSParams: n_bits (N = 2^n_bits) and the plot seed, with range/type checks
-  cli.py            Validators for command-line arguments (--n-bits, --seed, --challenges, --fraction)
+  cli.py            Validators for command-line arguments, including response time
   functions.py      HashFunction: original BLAKE2b comparison function
   feistel.py        FeistelPermutation: forward-only permutation and trusted inverse helper
   plot.py           Plot: the stored table (f(x) -> x), reports its size in bits
@@ -406,7 +418,7 @@ pos/
     honest.py       Honest prover: full table, answers by lookup
     partial_storage.py  Attack 4.1: keeps only part of the table
     time_storage.py     Attack 4.2: keeps part of the table, brute-forces what is missing
-  verifier.py       Verifier: new_challenge(), check(y, answer)
+  verifier.py       Verifier: new_challenge(), check(y, answer, response_time_ms)
 experiments/
   partial_storage.py    Compares the honest prover with many cheaters
   time_storage.py       Time/storage attack: storage vs hash calls vs time
@@ -424,7 +436,8 @@ tests/              unittest tests
 - **A new construction** (e.g. the collision-based g_f) is a new `Scheme`
   subclass in `pos/schemes/`, implementing `build_plot`, `sample_challenge`
   and `is_valid`.
-- **Security measures** (repeated challenges, time limits) go in `verifier.py`.
+- **Security checks** (required repeated challenges and response deadlines) are enforced by `main.py` and `verifier.py`.
+- The demo runner measures each response and passes its elapsed time to the verifier. Its post-return deadline rejects slow answers but cannot interrupt a prover that is still computing; it is a demonstration policy, not process-level isolation.
 - **Never trust the prover's answer.** In a new scheme's `is_valid`, check every
   part of the answer with `self.is_domain_element(...)` before evaluating f on it
   (the collision-based scheme has two parts, x and x').

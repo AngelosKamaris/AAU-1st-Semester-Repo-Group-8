@@ -7,6 +7,7 @@ They give a clear usage error instead of a traceback, and stop values such as
 from __future__ import annotations
 
 import argparse
+import math
 from typing import Callable, Optional
 
 from pos.params import MAX_N_BITS, SEED_BITS
@@ -29,6 +30,17 @@ def fraction(text: str) -> float:
     try: value = float(text)
     except ValueError: raise argparse.ArgumentTypeError(f"{text!r} is not a number") from None
     if not 0.0 <= value <= 1.0: raise argparse.ArgumentTypeError(f"must be between 0 and 1, got {text}")
+    return value
+
+
+def positive_milliseconds(text: str) -> float:
+    """argparse type: a finite, positive duration expressed in milliseconds."""
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a number") from None
+    if not math.isfinite(value) or value <= 0:
+        raise argparse.ArgumentTypeError("must be a finite number greater than 0")
     return value
 
 
