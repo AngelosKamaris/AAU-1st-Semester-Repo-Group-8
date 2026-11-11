@@ -57,6 +57,32 @@ class TestTimeStorage(unittest.TestCase):
         _, calls = run(prover, self.scheme)
         self.assertAlmostEqual(calls / self.N, 0.5, delta=0.1)     # about N / 2
 
+    def test_worst_case_is_N_minus_S(self):
+        """Verify that the worst-case challenge costs exactly N - S hash calls, 
+        where S is the number of stored entries."""
+        for fraction in (0.1, 0.5, 0.9):
+            prover = TimeStorageProver(self.scheme, fraction, rng_seed=1)
+            prover.setup()
+            S = len(prover.plot)
+            last_dropped = max(x for x in range(self.N) if x not in prover._stored_inputs)
+            y = Verifier(self.scheme, rng_seed=1).f(last_dropped)
+            before = prover.queries
+            self.assertEqual(prover.answer(y), last_dropped)
+            self.assertEqual(prover.queries - before, self.N - S)
+            self.assertEqual(S + (prover.queries - before), self.N)
+
+    def test_no_challenge_costs_more_than_N_minus_S(self):
+        """Verify that no challenge costs more than N - S hash calls, 
+        where S is the number of stored entries."""
+        prover = TimeStorageProver(self.scheme, 0.5, rng_seed=1)
+        prover.setup()
+        verifier = Verifier(self.scheme, rng_seed=1)
+        worst = self.N - len(prover.plot)
+        for _ in range(300):
+            before = prover.queries
+            prover.answer(verifier.new_challenge())
+            self.assertLessEqual(prover.queries - before, worst)
+
     def test_less_storage_means_more_time(self):
         """Verify that storing less information requires more computation
         when answering challenges."""
