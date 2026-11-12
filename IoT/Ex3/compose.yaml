@@ -60,8 +60,6 @@ services:
       CAMERA_TOKEN: ${C2_KEY}                 #4.2
       FOG_URL: https://fog_a:8000                 #4.1
       INTERVAL: "0"                    #5.1
-      C4_KEY: ${C4_KEY}
-      C5_KEY: ${C5_KEY}
     networks:
       zone_a_net:
         ipv4_address: 1.1.2.4
@@ -117,8 +115,6 @@ services:
       camera-1: ${C1_KEY}
       camera-2: ${C2_KEY}
       camera-3: ${C3_KEY}
-      # camera-4: ${C4_KEY}
-      # camera-5: ${C5_KEY}
       CLOUD_URL: https://cloud:8000                 #4.1
       RATE_LIMIT: "off"                   #5.2
     networks:
