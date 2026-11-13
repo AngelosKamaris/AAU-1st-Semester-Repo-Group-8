@@ -263,6 +263,7 @@ An attack is a different **prover** facing the same verifier. The attacks below 
 |---|---|---|---|---|
 | [5.1 Partial storage](#51-partial-storage) | `partial` | gives up | about p | none |
 | [5.2 Time/storage](#52-timestorage) | `timestorage` | brute-forces | all | about (1-p)² · N / 2 hash calls per challenge |
+| [5.3 Hellman](#53-hellman) | `hellman` | BLANK | BLANK | BLANK / BLANK |
 
 Suggested order for a demo: the basic scheme (section 4), then 5.1, 5.2 and section 6.
 
@@ -354,6 +355,22 @@ Takeaways
 - Storing nothing is plain brute force: about $N/2$ hash calls per challenge.
 - Time follows the hash-call count, so hash calls are the main measure and milliseconds are a sanity check.
 
+### 5.3 Hellman Attack
+
+*Code: `pos/provers/hellman.py`, `experiments/hellman.py`, `tests/test_hellman.py`.
+Diagram: [`Project/Diagramms/HellmanAttack`](../Diagramms/HellmanAttack.svg).*
+
+**What it does**
+- 
+- 
+- 
+
+**What it shows**
+
+
+Takeaways
+
+
 ---
 
 ## 6. Input validation
@@ -443,4 +460,4 @@ tests/              unittest tests
   (the collision-based scheme has two parts, x and x').
 - **New command-line options** should use the validators in `pos/cli.py`
   (`int_in_range`, `fraction`) so bad values give a usage error.
-- **Add a test** in `tests/` for anything new, so the group knows it works.
+- **Add a test** in `tests/` for anything new, so the group knows it works.
