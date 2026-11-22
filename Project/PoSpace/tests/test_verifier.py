@@ -161,7 +161,8 @@ class TestCommandLineValidation(unittest.TestCase):
             ["--stage", "1", "--challenges", "2"],
             ["--fraction", "2"],
             ["--time-limit-ms", "0"],
-            ["--threshold", "1"],
+            ["--stage", "2", "--threshold", "1"],
+            ["--stage", "3", "--challenges", "1", "--threshold", "2"],
             ["--online-query-budget", "-1"],
         ):
             with self.subTest(args=args):
@@ -175,6 +176,8 @@ class TestCommandLineValidation(unittest.TestCase):
             [
                 sys.executable,
                 "main.py",
+                "--stage",
+                "2",
                 "--n-bits",
                 "4",
                 "--challenges",
@@ -192,7 +195,7 @@ class TestCommandLineValidation(unittest.TestCase):
             text=True,
         )
         self.assertEqual(run.returncode, 1, run.stderr)
-        self.assertIn("1/3 required answers valid", run.stdout)
+        self.assertIn("1/3 answers valid", run.stdout)
         self.assertIn("Proof rejected (classified as adversary)", run.stdout)
         self.assertIn("Challenges attempted: 2/3", run.stdout)
         self.assertEqual(run.stdout.count(" y = "), 2)
@@ -216,7 +219,7 @@ class TestCommandLineValidation(unittest.TestCase):
 
     def test_main_reports_trial_acceptance_and_bounded_search_work(self):
         run = subprocess.run(
-            [sys.executable, "main.py", "--n-bits", "4", "--challenges", "4", "--trials", "2",
+            [sys.executable, "main.py", "--stage", "2", "--n-bits", "4", "--challenges", "4", "--trials", "2",
              "--prover", "timestorage", "--fraction", "0", "--online-query-budget", "1",
              "--challenge-seed", "1", "--time-limit-ms", "10"],
             capture_output=True, text=True,
@@ -231,6 +234,8 @@ class TestCommandLineValidation(unittest.TestCase):
             [
                 sys.executable,
                 "main.py",
+                "--stage",
+                "2",
                 "--n-bits",
                 "4",
                 "--challenge-seed",

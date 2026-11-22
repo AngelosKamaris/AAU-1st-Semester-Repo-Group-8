@@ -1,6 +1,6 @@
-# Proof of Space — Stages 1–2
+# Proof of Space — Stages 1–3
 
-Stage 2 adds timed repetitions to the single-challenge BLAKE2b scheme.
+Stage 3 adds paired-input proofs to the earlier BLAKE2b schemes.
 
 **Contents**
 1. [Group workflow](#1-group-workflow-mandatory-so-we-dont-mess-up-anything-)
@@ -10,6 +10,7 @@ Stage 2 adds timed repetitions to the single-challenge BLAKE2b scheme.
 5. [Storage experiments](#5-storage-experiments)
 6. [Tests](#6-tests)
 7. [Timed repeated challenges](#7-timed-repeated-challenges)
+8. [Paired-input proofs](#8-paired-input-proofs)
 
 ---
 
@@ -198,7 +199,7 @@ python -m unittest discover tests
 
 ## 7. Timed repeated challenges
 
-Stage 2 is the default on this branch. A proof must pass all 100 challenges
+Select Stage 2 with `--stage 2`. A proof must pass all 100 challenges
 within 0.05 ms per answer by default. The first missing, invalid, or late
 answer rejects the trial. The deadline checks elapsed time when the local
 call returns; it does not interrupt the prover.
@@ -213,3 +214,26 @@ Use `--trials` to compare acceptance rates on the same plot. An optional
 `--online-query-budget` caps the time/storage prover's search evaluations
 per missed lookup. Timing depends on machine load and is not a measure of
 how much data a prover stored.
+
+## 8. Paired-input proofs
+
+Stage 3 is the default on this branch. Plotting groups inputs by `f(x)`,
+then hashes every ordered pair from complementary buckets with `g`. The
+two functions use separate tags and public seeds. The plot retains one
+pair per distinct `g` output and discards the buckets.
+
+The verifier samples uniformly from the entire output domain. It checks
+both the complement relation and `g` without reading the plot. Some
+challenges have no valid pair, so Stage 3 reports coverage by default.
+After measuring honest coverage, use `--threshold` to require a minimum
+number of valid answers per trial.
+
+```bash
+python main.py --stage 3 --n-bits 12 --challenges 100 --trials 10 --challenge-seed 42
+python main.py --stage 3 --n-bits 12 --challenges 10 --threshold 5 --trials 100 \
+  --prover timestorage --fraction 0.5 --online-query-budget 512
+```
+
+On a miss, the time/storage prover rebuilds candidate pairs from public
+evaluations. Both `f` and `g` evaluations count toward the query budget,
+and temporary buckets are discarded after each response.
