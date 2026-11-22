@@ -2,50 +2,26 @@
 
 from __future__ import annotations
 
+import hashlib
 import unittest
 
 from pos import PoSParams, Verifier
-from pos.feistel import FeistelPermutation, trusted_inverse
 from pos.functions import HashFunction
 from pos.provers import HonestProver
 from pos.schemes import SimpleScheme
 
 
-class TestFeistelPermutation(unittest.TestCase):
-    def test_16_bit_mapping_is_a_permutation_and_inverse_recovers_input(self):
-        key = bytes.fromhex("00112233445566778899aabbccddeeff")
-        function = FeistelPermutation(key, 16)
-        outputs = [function(x) for x in range(function.N)]
-        self.assertEqual(len(set(outputs)), function.N)
-        self.assertTrue(all(0 <= y < function.N for y in outputs))
-        for x, y in enumerate(outputs):
-            self.assertEqual(trusted_inverse(y, key, 16), x)
-
-    def test_same_key_is_deterministic_and_another_key_changes_mapping(self):
-        key = bytes(16)
-        first = FeistelPermutation(key, 8)
-        second = FeistelPermutation(key, 8)
-        other = FeistelPermutation(bytes([1]) + bytes(15), 8)
-        self.assertEqual([first(x) for x in range(first.N)], [second(x) for x in range(second.N)])
-        self.assertNotEqual([first(x) for x in range(first.N)], [other(x) for x in range(other.N)])
-
-    def test_forward_function_does_not_expose_inverse_or_plot(self):
-        function = FeistelPermutation(bytes(16), 8)
-        self.assertFalse(hasattr(function, "inverse"))
-        self.assertFalse(hasattr(function, "table"))
-
-
 class TestHashFunction(unittest.TestCase):
-    def test_deterministic_and_full_size(self):
-        f, g = HashFunction(3, 8), HashFunction(3, 8)
-        for x in range(256):
-            self.assertEqual(f(x), g(x))
-            self.assertTrue(0 <= f(x) < 2 ** HashFunction.output_bits)
+    def test_deterministic_and_in_domain(self):
+        first, second = HashFunction(3, 9), HashFunction(3, 9)
+        for value in range(first.N):
+            output = first(value)
+            self.assertEqual(output, second(value))
+            self.assertTrue(0 <= output < first.N)
 
-    def test_no_collisions_with_full_output(self):
-        f = HashFunction(3, 10)
-        outputs = [f(x) for x in range(1024)]
-        self.assertEqual(len(set(outputs)), 1024)
+    def test_retains_first_bits_of_full_digest(self):
+        digest = hashlib.blake2b(b"\x00\x01", key=b"f" + (3).to_bytes(16, "big")).digest()
+        self.assertEqual(HashFunction(3, 9)(1), int.from_bytes(digest[:2], "big") >> 7)
 
     def test_different_seeds_give_different_functions(self):
         f, g = HashFunction(1, 12), HashFunction(2, 12)
@@ -70,6 +46,15 @@ class TestProtocol(unittest.TestCase):
         self.assertFalse(self.verifier.check(y, wrong))
         self.assertFalse(self.verifier.check(y, None))
         self.assertFalse(self.verifier.check(y, -1))
+
+    def test_plot_processes_all_inputs_and_keeps_each_distinct_output(self):
+        prover = HonestProver(self.scheme)
+        prover.setup()
+        self.assertEqual(prover.queries, self.scheme.params.N)
+        outputs = {self.verifier.f(value) for value in range(self.scheme.params.N)}
+        self.assertEqual(len(prover.plot), len(outputs))
+        for output in outputs:
+            self.assertTrue(self.verifier.check(output, prover.answer(output)))
 
 
 if __name__ == "__main__":

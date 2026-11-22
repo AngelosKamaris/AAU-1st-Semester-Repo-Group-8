@@ -5,7 +5,7 @@ Runs the honest prover and cheaters that keep only a share p of the table but br
 not stored. For each prover it prints:
   - how much it stores, compared with the honest prover,
   - how many challenges it passes (all of them: it never gives up),
-  - the average hash calls per challenge, next to the expected (1 - p)^2 * N / 2.
+  - the average and maximum hash calls per challenge.
 
 Run from the PoSpace folder:
     python -m experiments.time_storage
@@ -17,7 +17,7 @@ from __future__ import annotations
 import time, argparse
 
 from pos import PoSParams, Verifier
-from pos.cli import challenges_arg, fraction, n_bits_arg, seed_arg
+from pos.cli import challenges_arg, n_bits_arg, seed_arg
 from pos.schemes import SimpleScheme
 from pos.provers import HonestProver, Prover, TimeStorageProver
 
@@ -51,22 +51,18 @@ def print_results(results: list[dict], args: argparse.Namespace, N: int) -> None
     honest_storage = results[0]["storage"]
     print(f"\nTime/storage attack (N = 2^{args.n_bits} = {N}, {args.challenges} challenges each)\n")
     print(f"{'Prover':<26} {'Storage':>8} {'S (entries)':>10} {'Passed':>7} {'Avg calls':>10} "
-          f"{'Expected':>9} {'Max calls':>10} {'T (worst)':>7} {'S+T':>8} {'Avg time':>10}")
+          f"{'Max calls':>10} {'Call bound':>10} {'Avg time':>10}")
     print("-" * 77)
-    for r, p in zip(results, [1.0] + FRACTIONS):
+    for r in results:
         storage = f"{r['storage'] / honest_storage:.0%}"
-        expected = (1 - p) ** 2 * N / 2
-        worst = N - r["entries"] # a miss scans every dropped input
+        worst = N - r["entries"]
         print(f"{r['prover']:<26} {storage:>8} {r['entries']:>10} {r['passed']:>7.0%} "
-              f"{r['calls']:>10.1f} {expected:>9.1f} {r['max_calls']:>10} {worst:>7} "
-              f"{r['entries'] + worst:>8} {r['ms']:>7.2f} ms")
+              f"{r['calls']:>10.1f} {r['max_calls']:>10} {worst:>10} {r['ms']:>7.2f} ms")
         
     print("\nStorage is relative to the honest prover.")
     print("Avg calls = hash evaluations per challenge (setup excluded).")
-    print("Expected = (1-p)^2 * N/2, with p the share of the table kept.")
     print("Max calls = the most hash calls any single challenge needed in this run.")
-    print("T (worst) = N - S: the most a challenge can ever need (all dropped inputs scanned).")
-    print("S + T = N: a straight line.")
+    print("Call bound = N - S; collisions can yield an earlier match.")
     print("Avg time = wall-clock time the prover needs to answer one challenge (depends on the machine).")
 
 

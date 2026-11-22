@@ -11,18 +11,7 @@ import hashlib
 
 
 class HashFunction:
-    """f(x) = BLAKE2b(seed, x), using the full 256-bit hash output.
-
-    Inputs x come from [0, N), with N = 2**n_bits. Outputs are the full hash,
-    not reduced mod N, so the hash keeps its full strength. With so many
-    possible outputs, two different x practically never give the same y.
-
-    Note: finding x for a given y still takes at most N tries (there are only
-    N possible inputs). That is what the proof of space relies on.
-    """
-
-    OUTPUT_BYTES = 32                  # full BLAKE2b-256 output
-    output_bits = OUTPUT_BYTES * 8     # 256
+    """A seeded BLAKE2b function truncated to the first n_bits of its digest."""
 
     def __init__(self, seed: int, n_bits: int, domain_tag: bytes = b"f") -> None:
         self.seed = seed
@@ -40,9 +29,9 @@ class HashFunction:
             raise ValueError(f"input {x} outside domain [0, {self.N})")
         self.calls += 1
         digest = hashlib.blake2b(
-            x.to_bytes(self._x_bytes, "big"), key=self._key, digest_size=self.OUTPUT_BYTES
+            x.to_bytes(self._x_bytes, "big"), key=self._key
         ).digest()
-        return int.from_bytes(digest, "big")
+        return int.from_bytes(digest, "big") >> (len(digest) * 8 - self.n_bits)
 
     def reset_calls(self) -> None:
         self.calls = 0

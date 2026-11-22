@@ -9,9 +9,9 @@ does on a miss. Instead of giving up, it brute-forces: it evaluates f on inputs 
 
 This means the cheater can always produce a correct answer while using less storage than an honest prover, 
 at the cost of additional computation.
-A cheater keeping a fraction p of the table does on average (1-p)^2 * N/2 hash calls per challenge.
-In the worst case it stores S = p * N entries and spends T = (1 - p) * N hash calls, so S + T = N, 
-instead of the all-or-nothing behaviour of the honest prover.
+With distinct outputs, a cheater keeping a fraction p does about (1-p)^2 * N/2
+calls per challenge, with worst-case work N - S for S stored entries. Collisions
+can allow an earlier match, so N - S is only an upper bound in general.
 """
 
 from __future__ import annotations
