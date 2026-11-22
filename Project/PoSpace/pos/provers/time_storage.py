@@ -16,6 +16,7 @@ can allow an earlier match, so N - S is only an upper bound in general.
 
 from __future__ import annotations
 
+from itertools import islice
 from typing import Optional
 
 from pos.schemes.base import Scheme
@@ -24,8 +25,12 @@ from pos.provers.partial_storage import PartialStorageProver
 
 class TimeStorageProver(PartialStorageProver):
     """Prover implementing a time/storage trade-off attack."""
-    def __init__(self, scheme: Scheme, fraction: float, rng_seed: Optional[int] = None) -> None:
+    def __init__(self, scheme: Scheme, fraction: float, rng_seed: Optional[int] = None,
+                 online_query_budget: Optional[int] = None) -> None:
         super().__init__(scheme, fraction, rng_seed)
+        if online_query_budget is not None and (type(online_query_budget) is not int or online_query_budget < 0):
+            raise ValueError("online_query_budget must be a non-negative integer")
+        self.online_query_budget = online_query_budget
         self.name = f"time-storage({fraction:.0%} stored)"
 
     def setup(self) -> None:
@@ -39,7 +44,10 @@ class TimeStorageProver(PartialStorageProver):
         """Answer a verifier challenge using lookup or brute-force search."""
         x = self.plot.lookup(y)
         if x is not None: return x                    # in the stored part: lookup
-        for x in range(self.scheme.params.N):         # otherwise: brute force
-            if x not in self._stored_inputs and self.f(x) == y:
-                return x
+        domain_size = self.scheme.params.N
+        budget = self.online_query_budget
+        inputs = (value for value in range(domain_size) if value not in self._stored_inputs)
+        for value in islice(inputs, min(budget, domain_size) if budget is not None else None):
+            if self.f(value) == y:
+                return value
         return None

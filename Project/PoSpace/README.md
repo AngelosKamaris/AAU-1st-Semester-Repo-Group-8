@@ -1,6 +1,6 @@
-# Proof of Space — Stage 1
+# Proof of Space — Stages 1–2
 
-A single-challenge, untimed proof of space using truncated BLAKE2b.
+Stage 2 adds timed repetitions to the single-challenge BLAKE2b scheme.
 
 **Contents**
 1. [Group workflow](#1-group-workflow-mandatory-so-we-dont-mess-up-anything-)
@@ -9,6 +9,7 @@ A single-challenge, untimed proof of space using truncated BLAKE2b.
 4. [Plot and verification](#4-plot-and-verification)
 5. [Storage experiments](#5-storage-experiments)
 6. [Tests](#6-tests)
+7. [Timed repeated challenges](#7-timed-repeated-challenges)
 
 ---
 
@@ -155,11 +156,11 @@ Run from `Project/PoSpace` with Python 3:
 
 ```bash
 python main.py
-python main.py --n-bits 12 --challenges 20 --seed 1 --challenge-seed 42
+python main.py --stage 1 --n-bits 12 --trials 20 --seed 1 --challenge-seed 42
 ```
 
-Stage 1 verifies one untimed challenge per trial. `--challenges` controls the
-number of independent trials. `--seed` (also `--seed-f`) sets the public plot seed.
+Stage 1 verifies one untimed challenge per trial. `--trials` controls the
+number of trials. `--seed` (also `--seed-f`) sets the public plot seed.
 Omit `--challenge-seed` for OS-backed randomness.
 
 ## 4. Plot and verification
@@ -181,7 +182,7 @@ entries, a miss takes at most `N - S` hash evaluations; collisions can yield
 an earlier match.
 
 ```bash
-python main.py --prover partial --fraction 0.5 --challenges 20
+python main.py --stage 1 --prover partial --fraction 0.5 --trials 20
 python -m experiments.partial_storage --n-bits 12 --challenges 300
 python -m experiments.time_storage --n-bits 12 --challenges 300
 ```
@@ -194,3 +195,21 @@ The experiment modules measure individual untimed challenges. See the
 ```bash
 python -m unittest discover tests
 ```
+
+## 7. Timed repeated challenges
+
+Stage 2 is the default on this branch. A proof must pass all 100 challenges
+within 0.05 ms per answer by default. The first missing, invalid, or late
+answer rejects the trial. The deadline checks elapsed time when the local
+call returns; it does not interrupt the prover.
+
+```bash
+python main.py --stage 1
+python main.py --stage 2 --challenges 10 --time-limit-ms 0.05 --trials 300
+python main.py --stage 2 --challenges 20 --prover timestorage --fraction 0.5 --trials 300
+```
+
+Use `--trials` to compare acceptance rates on the same plot. An optional
+`--online-query-budget` caps the time/storage prover's search evaluations
+per missed lookup. Timing depends on machine load and is not a measure of
+how much data a prover stored.
