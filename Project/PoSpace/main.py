@@ -6,6 +6,9 @@ Examples:
     python main.py --prover partial --fraction 0.5         # cheater keeps 50%
     python main.py --prover partial --fraction 0.25        # cheater keeps 25%
     python main.py --prover timestorage --fraction 0.5     # keeps 50%, brute-forces the rest
+    python main.py --prover hellman --step 8                        # you choose t
+    python main.py --prover hellman --time-limit-ms 1               # the cheater calculates t itself
+
 """
 
 from __future__ import annotations
@@ -22,16 +25,17 @@ from pos.cli import (
     rounds_arg,
     seed_arg,
 )
-from pos.provers import HonestProver, PartialStorageProver, TimeStorageProver
+from pos.provers import HonestProver, PartialStorageProver, TimeStorageProver, HellmanProver
 from pos.schemes import SimpleScheme
 
-PROVER_ARGS = ["honest", "partial", "timestorage"]
+PROVER_ARGS = ["honest", "partial", "timestorage", "hellman"]
 
 def build_prover(args, scheme):
     """Create the prover chosen on the command line."""
     if args.prover == "honest": return HonestProver(scheme)
     if args.prover == "partial": return PartialStorageProver(scheme, fraction=args.fraction, rng_seed=args.seed)
     if args.prover == "timestorage": return TimeStorageProver(scheme, fraction=args.fraction, rng_seed=args.seed)
+    if args.prover == "hellman": return HellmanProver(scheme, step=args.step, time_limit_ms=args.time_limit_ms)
     raise ValueError(f"unknown prover {args.prover}")
 
 
@@ -52,12 +56,19 @@ def main() -> None:
     parser.add_argument("--time-limit-ms", type=positive_milliseconds, default=0.1, help="maximum prover response time per challenge in milliseconds")
     parser.add_argument("--prover", choices=PROVER_ARGS, default="honest", help="which prover to run")
     parser.add_argument("--fraction", type=fraction, default=0.5, help="partial/timestorage prover: share of the table it keeps (0 to 1)")
+    parser.add_argument("--step", type=step_arg, help="hellman prover: keep every t-th value of each cycle (default: chosen from --time-limit-ms)")
     args = parser.parse_args()
 
     if args.function == "feistel" and (args.n_bits < 2 or args.n_bits % 2):
         parser.error("Feistel requires an even --n-bits value of at least 2")
     if args.function != "feistel" and args.master_key is not None:
         parser.error("--master-key can only be used with Feistel")
+    
+    if args.prover == "hellman" and args.function != "feistel":
+        parser.error("the hellman prover needs the Feistel permutation")
+    if args.step is not None and args.step > (1 << args.n_bits):
+        parser.error("--step must be at most N = 2^n_bits")
+
 
     scheme = SimpleScheme(PoSParams(
         n_bits=args.n_bits,
